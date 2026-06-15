@@ -70,7 +70,7 @@ function speak(text) {
         window.speechSynthesis.cancel(); // Evita acumulación de frases
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'es-ES';
-        utterance.rate = 1.1; // Un poco más rápido para no interrumpir el ritmo
+        utterance.rate = 1.15; // Un poco más rápido para fluidez
         window.speechSynthesis.speak(utterance);
     }
 }
@@ -91,7 +91,7 @@ function addExercise() {
             pt: parseInt(document.getElementById('tempo-pt').value) || 0
         },
         rest: {
-            rep: parseInt(document.getElementById('rest-rep').value) || 0,
+            // ELIMINADO: rep: parseInt(...)
             set: parseInt(document.getElementById('rest-set').value) || 0,
             ex: parseInt(document.getElementById('rest-ex').value) || 0
         }
@@ -110,7 +110,8 @@ function calculateTotalTime() {
     let total = 40; // 40s de preparación inicial
     currentRoutine.exercises.forEach(ex => {
         const repCycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
-        const setTime = (repCycle + ex.rest.rep) * ex.reps + ex.rest.set;
+        // ELIMINADO: + ex.rest.rep del cálculo
+        const setTime = (repCycle * ex.reps) + ex.rest.set;
         total += (setTime * ex.sets) + ex.rest.ex;
     });
     currentRoutine.totalTime = total;
@@ -142,121 +143,90 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    
     const now = audioCtx.currentTime;
 
     switch(type) {
         case 'eccentric':
-            // Campana grave prolongada (Excéntrico)
             const oscEcc = audioCtx.createOscillator();
             const gainEcc = audioCtx.createGain();
-            oscEcc.connect(gainEcc);
-            gainEcc.connect(audioCtx.destination);
+            oscEcc.connect(gainEcc); gainEcc.connect(audioCtx.destination);
             oscEcc.type = 'sine';
             oscEcc.frequency.setValueAtTime(250, now);
             oscEcc.frequency.exponentialRampToValueAtTime(150, now + 0.5);
             gainEcc.gain.setValueAtTime(0.5, now);
             gainEcc.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-            oscEcc.start(now);
-            oscEcc.stop(now + 0.8);
+            oscEcc.start(now); oscEcc.stop(now + 0.8);
             break;
 
         case 'pause-bottom':
-            // Doble beep (Pausa abajo)
             playDoubleBeep(now);
             break;
 
         case 'concentric':
-            // Campana aguda brillante (Concéntrico)
             const oscCon = audioCtx.createOscillator();
             const gainCon = audioCtx.createGain();
-            oscCon.connect(gainCon);
-            gainCon.connect(audioCtx.destination);
+            oscCon.connect(gainCon); gainCon.connect(audioCtx.destination);
             oscCon.type = 'sine';
             oscCon.frequency.setValueAtTime(900, now);
             oscCon.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
             gainCon.gain.setValueAtTime(0.5, now);
             gainCon.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-            oscCon.start(now);
-            oscCon.stop(now + 0.8);
+            oscCon.start(now); oscCon.stop(now + 0.8);
             break;
 
         case 'pause-top':
-            // Triple beep rápido (Pausa arriba)
             playTripleBeep(now);
             break;
 
         case 'metronome':
-            // Tick de metrónomo (descansos, preparación y conteo de tempos)
             const oscMet = audioCtx.createOscillator();
             const gainMet = audioCtx.createGain();
-            oscMet.connect(gainMet);
-            gainMet.connect(audioCtx.destination);
+            oscMet.connect(gainMet); gainMet.connect(audioCtx.destination);
             oscMet.type = 'square';
             oscMet.frequency.setValueAtTime(1000, now);
             oscMet.frequency.exponentialRampToValueAtTime(100, now + 0.05);
             gainMet.gain.setValueAtTime(0.2, now);
             gainMet.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-            oscMet.start(now);
-            oscMet.stop(now + 0.05);
+            oscMet.start(now); oscMet.stop(now + 0.05);
             break;
 
         case 'transition':
-            // Sonido ascendente para indicar cambio de ejercicio
             const oscTrans = audioCtx.createOscillator();
             const gainTrans = audioCtx.createGain();
-            oscTrans.connect(gainTrans);
-            gainTrans.connect(audioCtx.destination);
+            oscTrans.connect(gainTrans); gainTrans.connect(audioCtx.destination);
             oscTrans.type = 'sine';
             oscTrans.frequency.setValueAtTime(400, now);
             oscTrans.frequency.linearRampToValueAtTime(800, now + 0.3);
             gainTrans.gain.setValueAtTime(0.4, now);
             gainTrans.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            oscTrans.start(now);
-            oscTrans.stop(now + 0.3);
+            oscTrans.start(now); oscTrans.stop(now + 0.3);
             break;
     }
 }
 
 function playDoubleBeep(time) {
-    const osc1 = audioCtx.createOscillator();
-    const gain1 = audioCtx.createGain();
-    const osc2 = audioCtx.createOscillator();
-    const gain2 = audioCtx.createGain();
+    const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
+    const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
+    osc1.connect(gain1); osc2.connect(gain2);
+    gain1.connect(audioCtx.destination); gain2.connect(audioCtx.destination);
     
-    osc1.connect(gain1);
-    osc2.connect(gain2);
-    gain1.connect(audioCtx.destination);
-    gain2.connect(audioCtx.destination);
+    osc1.type = 'sine'; osc1.frequency.setValueAtTime(600, time);
+    gain1.gain.setValueAtTime(0.3, time); gain1.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+    osc1.start(time); osc1.stop(time + 0.1);
     
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(600, time);
-    gain1.gain.setValueAtTime(0.3, time);
-    gain1.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-    osc1.start(time);
-    osc1.stop(time + 0.1);
-    
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(600, time + 0.2);
-    gain2.gain.setValueAtTime(0.3, time + 0.2);
-    gain2.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
-    osc2.start(time + 0.2);
-    osc2.stop(time + 0.3);
+    osc2.type = 'sine'; osc2.frequency.setValueAtTime(600, time + 0.2);
+    gain2.gain.setValueAtTime(0.3, time + 0.2); gain2.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+    osc2.start(time + 0.2); osc2.stop(time + 0.3);
 }
 
 function playTripleBeep(time) {
     for (let i = 0; i < 3; i++) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1200, time + (i * 0.15));
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(1200, time + (i * 0.15));
         gain.gain.setValueAtTime(0.2, time + (i * 0.15));
         gain.gain.exponentialRampToValueAtTime(0.01, time + (i * 0.15) + 0.08);
-        osc.start(time + (i * 0.15));
-        osc.stop(time + (i * 0.15) + 0.08);
+        osc.start(time + (i * 0.15)); osc.stop(time + (i * 0.15) + 0.08);
     }
 }
 
@@ -267,19 +237,33 @@ function buildTimerQueue() {
     currentRoutine.exercises.forEach((ex, exIndex) => {
         for (let s = 1; s <= ex.sets; s++) {
             for (let r = 1; r <= ex.reps; r++) {
-                if (ex.tempo.ecc > 0) queue.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
-                if (ex.tempo.pb > 0) queue.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
-                if (ex.tempo.con > 0) queue.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
-                if (ex.tempo.pt > 0) queue.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
+                const isFirstRep = (r === 1);
+                const phases = [];
                 
-                if (r < ex.reps && ex.rest.rep > 0) {
-                    queue.push({ phase: 'Descanso entre reps', duration: ex.rest.rep, action: 'rest' });
-                }
+                if (ex.tempo.ecc > 0) phases.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
+                if (ex.tempo.pb > 0) phases.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
+                if (ex.tempo.con > 0) phases.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
+                if (ex.tempo.pt > 0) phases.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
+
+                // Asignamos el nombre del ejercicio y el número de serie a cada fase
+                phases.forEach((p, index) => {
+                    queue.push({
+                        ...p,
+                        exerciseName: ex.name,
+                        setNumber: s,
+                        // Solo anunciamos el nombre en la MUY PRIMERA fase de la primera repetición
+                        isFirstPhaseOfRep: (isFirstRep && index === 0)
+                    });
+                });
+
+                // ELIMINADO: Descanso entre repeticiones
             }
+            
             if (s < ex.sets && ex.rest.set > 0) {
                 queue.push({ phase: 'Descanso entre series', duration: ex.rest.set, action: 'rest' });
             }
         }
+        
         if (exIndex < currentRoutine.exercises.length - 1 && ex.rest.ex > 0) {
             queue.push({ phase: 'Descanso entre ejercicios', duration: ex.rest.ex, action: 'rest-exercise' });
         }
@@ -296,24 +280,31 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // ANUNCIOS DE VOZ Y SONIDO AL INICIO EXACTO DE LA FASE
+    // ANUNCIOS DE VOZ AL INICIO EXACTO DE LA FASE
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación");
     } 
     else if (item.action === 'ecc') {
-        speak("Exce");
+        if (item.isFirstPhaseOfRep) {
+            speak(`Serie ${item.setNumber}, ${item.exerciseName}. Exce`);
+        } else {
+            speak("Exce");
+        }
         playSound('eccentric');
     } 
     else if (item.action === 'pause-bottom') {
-        speak("Pausa abajo");
+        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
+        else speak("Pausa abajo");
         playSound('pause-bottom');
     }
     else if (item.action === 'con') {
-        speak("Conce");
+        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
+        else speak("Conce");
         playSound('concentric');
     } 
     else if (item.action === 'pause-top') {
-        speak("Pausa arriba");
+        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
+        else speak("Pausa arriba");
         playSound('pause-top');
     }
     else if (item.action === 'rest' || item.action === 'rest-exercise') {
@@ -329,7 +320,12 @@ function loadNextPhase() {
 }
 
 function updateTimerUI(item) {
-    document.getElementById('current-phase-title').innerText = item.phase;
+    // Mostrar nombre del ejercicio en la pantalla si está disponible
+    let title = item.phase;
+    if (item.exerciseName) {
+        title = `${item.exerciseName} - ${item.phase}`;
+    }
+    document.getElementById('current-phase-title').innerText = title;
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
     
     const circle = document.querySelector('.progress-ring__circle');
@@ -340,36 +336,29 @@ function updateTimerUI(item) {
     circle.style.strokeDashoffset = offset;
 }
 
-// FUNCIÓN DE TIEMPO VERIFICADA Y PRECISA
 function tick() {
     if (isPaused) return;
 
     const currentItem = queue[currentQueueIndex];
 
-    // Anuncios de voz durante la cuenta regresiva (preparación y descansos)
+    // Anuncios de voz durante la cuenta regresiva
     if (currentItem.action === 'prep') {
         if (timeLeftInPhase === 20) speak("Veinte segundos");
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) {
-            speak(timeLeftInPhase.toString());
-        }
+        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
     } else if (currentItem.action === 'rest' || currentItem.action === 'rest-exercise') {
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) {
-            speak(timeLeftInPhase.toString());
-        }
+        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
     }
 
-    // 1. Decrementar el tiempo (Precisión de 1 segundo exacto)
+    // Decrementar el tiempo
     timeLeftInPhase--;
-
-    // 2. Actualizar la interfaz visual
     updateTimerUI(currentItem);
 
-    // 3. Metrónomo: Suena en CADA segundo del conteo regresivo (incluyendo los últimos 5 segundos)
+    // Metrónomo en cada segundo
     if (timeLeftInPhase > 0) {
         playSound('metronome');
     }
 
-    // 4. Verificar si terminó la fase actual
+    // Verificar si terminó la fase actual
     if (timeLeftInPhase <= 0) {
         currentQueueIndex++;
         if (currentQueueIndex < queue.length) {
@@ -382,13 +371,12 @@ function tick() {
 }
 
 function toggleTimer() {
-    if (audioCtx.state === 'suspended') audioCtx.resume(); // Necesario para iOS/Chrome
-    
+    if (audioCtx.state === 'suspended') audioCtx.resume();
     isPaused = !isPaused;
     document.getElementById('btn-start-pause').innerText = isPaused ? 'Reanudar' : 'Pausar';
     
     if (!isPaused) {
-        timerInterval = setInterval(tick, 1000); // 1000ms = 1 segundo exacto
+        timerInterval = setInterval(tick, 1000);
     } else {
         clearInterval(timerInterval);
     }
@@ -414,12 +402,10 @@ async function saveHistory() {
         total_time: currentRoutine.totalTime
     };
 
-    // Guardar localmente (Offline First)
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history.push(record);
     localStorage.setItem('gym_history', JSON.stringify(history));
 
-    // Intentar subir a Supabase si hay conexión
     if (navigator.onLine && currentUser) {
         await supabaseClient.from('routines').insert(record);
     }
@@ -429,15 +415,13 @@ async function loadHistory() {
     const container = document.getElementById('history-list');
     container.innerHTML = '<p>Cargando...</p>';
 
-    // Limpiar datos de más de 6 semanas (42 días)
     const sixWeeksAgo = new Date();
     sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
 
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history = history.filter(h => new Date(h.date) >= sixWeeksAgo);
-    localStorage.setItem('gym_history', JSON.stringify(history)); // Guardar limpieza
+    localStorage.setItem('gym_history', JSON.stringify(history));
 
-    // Si hay internet, intentar traer de Supabase y fusionar
     if (navigator.onLine && currentUser) {
         const { data, error } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
         if (data) {
