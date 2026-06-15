@@ -6,7 +6,6 @@
     <title>Gym Tracker Pro</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -55,7 +54,7 @@
                 </div>
                 
                 <div class="exercise-inputs">
-                    <input type="text" id="ex-name" placeholder="Nombre del ejercicio">
+                    <input type="text" id="ex-name" placeholder="Nombre del ejercicio (ej: Sentadilla)">
                     <div class="row">
                         <input type="number" id="ex-sets" placeholder="Series" min="1">
                         <input type="number" id="ex-reps" placeholder="Repeticiones" min="1">
@@ -70,7 +69,7 @@
                     </div>
                     <p class="sub-title">Descansos (segundos):</p>
                     <div class="row">
-                        <input type="number" id="rest-rep" placeholder="Entre Reps" min="0">
+                        <!-- ELIMINADO: Descanso entre repeticiones -->
                         <input type="number" id="rest-set" placeholder="Entre Series" min="0">
                         <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
                     </div>
@@ -123,11 +122,9 @@
 
     <script src="app.js"></script>
     <script>
-        // Registro del Service Worker para modo offline
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registrado'));
         }
     </script>
-    <audio id="audio-metronome" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"></audio> <!-- Placeholder, se usa Web Audio API en JS -->
 </body>
 </html>
