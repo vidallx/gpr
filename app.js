@@ -28,6 +28,23 @@ async function login() {
     currentUser = data.user;
     initApp();
 }
+// Función para enviar el correo de recuperación de contraseña
+async function resetPassword() {
+    const email = document.getElementById('login-email').value;
+    if (!email) return showMessage('Por favor, ingresa tu correo electrónico.');
+
+    // Envía un enlace mágico al correo del usuario para que cree una nueva contraseña
+    const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://tu-dominio.com/reset-password', // Opcional: URL a tu página de reset
+    });
+
+    if (error) {
+        showMessage('Error: ' + error.message);
+    } else {
+        showMessage('Se ha enviado un enlace de recuperación a tu correo.');
+    }
+}
+
 
 async function register() {
     const email = document.getElementById('login-email').value;
