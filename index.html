@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Tracker Pro</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <header>
+        <img src="gim.png" alt="Gym Logo" class="logo">
+        <h1>Gym Tracker Pro</h1>
+    </header>
+
+    <main>
+        <!-- INTERFASE 1: INGRESO -->
+        <section id="login-section" class="interface active">
+            <div class="card">
+                <h2>Iniciar Sesión</h2>
+                <input type="email" id="login-email" placeholder="Correo electrónico">
+                <input type="password" id="login-password" placeholder="Contraseña">
+                <button onclick="login()">Ingresar</button>
+                <p class="divider">o</p>
+                <button class="secondary" onclick="register()">Registrar Nuevo Usuario</button>
+                <p id="auth-message" class="message"></p>
+            </div>
+        </section>
+
+        <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
+        <section id="programmer-section" class="interface hidden">
+            <div class="card">
+                <h2>Programar Rutina</h2>
+                <div class="form-group">
+                    <label>Tipo de Entrenamiento:</label>
+                    <select id="body-part">
+                        <option value="Tren Superior">Tren Superior</option>
+                        <option value="Tren Inferior">Tren Inferior</option>
+                        <option value="Full Body">Full Body</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Día de entrenamiento:</label>
+                    <select id="training-day">
+                        <option value="Lunes">Lunes</option>
+                        <option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option>
+                        <option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option>
+                        <option value="Sábado">Sábado</option>
+                        <option value="Domingo">Domingo</option>
+                    </select>
+                </div>
+                
+                <div class="exercise-inputs">
+                    <input type="text" id="ex-name" placeholder="Nombre del ejercicio">
+                    <div class="row">
+                        <input type="number" id="ex-sets" placeholder="Series" min="1">
+                        <input type="number" id="ex-reps" placeholder="Repeticiones" min="1">
+                        <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
+                    </div>
+                    <p class="sub-title">Tempo (segundos):</p>
+                    <div class="row">
+                        <input type="number" id="tempo-ecc" placeholder="Excéntrico" min="0">
+                        <input type="number" id="tempo-pb" placeholder="Pausa Abajo" min="0">
+                        <input type="number" id="tempo-con" placeholder="Concéntrico" min="0">
+                        <input type="number" id="tempo-pt" placeholder="Pausa Arriba" min="0">
+                    </div>
+                    <p class="sub-title">Descansos (segundos):</p>
+                    <div class="row">
+                        <input type="number" id="rest-rep" placeholder="Entre Reps" min="0">
+                        <input type="number" id="rest-set" placeholder="Entre Series" min="0">
+                        <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
+                    </div>
+                    <button class="secondary" onclick="addExercise()">Añadir Ejercicio</button>
+                </div>
+
+                <div id="routine-summary" class="summary-box">
+                    <p>Tiempo total estimado: <span id="total-time-display">0</span> segundos</p>
+                    <ul id="exercise-list"></ul>
+                </div>
+
+                <button class="primary-btn" onclick="saveAndStartRoutine()">Guardar e Iniciar Rutina</button>
+            </div>
+        </section>
+
+        <!-- INTERFASE 3: EJECUTOR (CRONOMETRAJE) -->
+        <section id="executor-section" class="interface hidden">
+            <div class="card minimalist">
+                <h2 id="current-phase-title">Preparación</h2>
+                <div class="progress-container">
+                    <svg class="progress-ring" width="200" height="200">
+                        <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.2)" stroke-width="10" fill="transparent" r="90" cx="100" cy="100"/>
+                        <circle class="progress-ring__circle" stroke="#ffffff" stroke-width="10" fill="transparent" r="90" cx="100" cy="100"/>
+                    </svg>
+                    <div class="timer-display">
+                        <span id="timer-seconds">00</span>
+                        <span class="phase-label" id="tempo-label">s</span>
+                    </div>
+                </div>
+                <div class="controls">
+                    <button onclick="toggleTimer()" id="btn-start-pause">Iniciar</button>
+                    <button class="danger" onclick="finishRoutine()">Finalizar</button>
+                    <button class="secondary" onclick="showInterface('programmer-section')">Volver</button>
+                </div>
+                <button class="history-btn" onclick="showInterface('history-section'); loadHistory();">Historial</button>
+            </div>
+        </section>
+
+        <!-- INTERFASE 4: HISTORIAL -->
+        <section id="history-section" class="interface hidden">
+            <div class="card">
+                <h2>Historial de Rutinas</h2>
+                <button class="secondary" onclick="showInterface('programmer-section')">Volver al Programador</button>
+                <div id="history-list" class="history-container">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+    <script>
+        // Registro del Service Worker para modo offline
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registrado'));
+        }
+    </script>
+    <audio id="audio-metronome" src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"></audio> <!-- Placeholder, se usa Web Audio API en JS -->
+</body>
+</html>

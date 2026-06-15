@@ -1,0 +1,15 @@
+{
+  "name": "Gym Tracker Pro",
+  "short_name": "GymTracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0C047D",
+  "theme_color": "#C23D55",
+  "icons": [
+    {
+      "src": "gim.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
