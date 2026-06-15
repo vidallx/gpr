@@ -23,8 +23,10 @@ let timeLeftInPhase = 0;
 async function login() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
+    
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) return showMessage(error.message);
+    
     currentUser = data.user;
     initApp();
 }
@@ -44,15 +46,40 @@ async function resetPassword() {
         showMessage('Se ha enviado un enlace de recuperación a tu correo.');
     }
 }
-
-
 async function register() {
+    const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) return showMessage(error.message);
-    showMessage('Registro exitoso. Por favor inicia sesión.');
+
+    if (!name) return showMessage('⚠️ Por favor, ingresa tu nombre para registrarte.');
+    if (!email || !password) return showMessage('⚠️ Completa todos los campos.');
+
+    showMessage('Registrando...');
+
+    // Guardamos el nombre en los metadatos del usuario de Supabase
+    const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+            data: {
+                full_name: name
+            }
+        }
+    });
+
+    if (error) {
+        showMessage('Error: ' + error.message);
+    } else {
+        showMessage('✅ Registro exitoso. ¡Bienvenido ' + name + '!');
+        currentUser = data.user;
+        // Pequeña pausa para que el usuario lea el mensaje antes de cambiar de pantalla
+        setTimeout(() => {
+            initApp();
+        }, 1500);
+    }
 }
+
+
 
 function showMessage(msg) {
     document.getElementById('auth-message').innerText = msg;
@@ -60,7 +87,15 @@ function showMessage(msg) {
 
 function initApp() {
     showInterface('programmer-section');
-    speakRandomGreeting(currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
+    
+    // Lógica para obtener el nombre: 
+    // 1. Busca en los metadatos de Supabase (si se registró con nombre)
+    // 2. Si no existe, usa la parte antes del @ del correo
+    // 3. Si todo falla, usa "Atleta"
+    const userName = currentUser.user_metadata?.full_name || 
+                    (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
+                    
+    speakRandomGreeting(userName);
 }
 
 // ==========================================
