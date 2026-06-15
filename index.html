@@ -18,15 +18,21 @@
         <!-- INTERFASE 1: INGRESO -->
         <section id="login-section" class="interface active">
             <div class="card">
-                <h2>Iniciar Sesión</h2>
+                <h2>Bienvenido</h2>
+                <!-- Nuevo campo para el nombre -->
+                <input type="text" id="user-name" placeholder="Tu nombre (ej: Carlos)">
+                
                 <input type="email" id="login-email" placeholder="Correo electrónico">
                 <input type="password" id="login-password" placeholder="Contraseña">
-                <button onclick="login()">Ingresar</button>
+                
+                <button onclick="login()">Iniciar Sesión</button>
                 <p class="divider">o</p>
                 <button class="secondary" onclick="register()">Registrar Nuevo Usuario</button>
+                
                 <p id="auth-message" class="message"></p>
-                <p style="text-align: center; margin-top: 10px;">
-                    <a href="#" onclick="resetPassword()" style="color: #C23D55; font-size: 14px;">¿Olvidaste tu contraseña?</a>
+                
+                <p style="text-align: center; margin-top: 15px;">
+                    <a href="#" onclick="resetPassword()" style="color: #C23D55; font-size: 14px; text-decoration: none; font-weight: bold;">¿Olvidaste tu contraseña?</a>
                 </p>
             </div>
         </section>
