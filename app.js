@@ -16,6 +16,7 @@ let isPaused = true;
 let queue = []; 
 let currentQueueIndex = 0;
 let timeLeftInPhase = 0;
+let editIndex = -1; // Para la función de modificar
 
 // ==========================================
 // 1. AUTENTICACIÓN
@@ -23,78 +24,32 @@ let timeLeftInPhase = 0;
 async function login() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) return showMessage(error.message);
-    
     currentUser = data.user;
     initApp();
 }
-// Función para enviar el correo de recuperación de contraseña
-async function resetPassword() {
-    const email = document.getElementById('login-email').value;
-    if (!email) return showMessage('Por favor, ingresa tu correo electrónico.');
 
-    // Envía un enlace mágico al correo del usuario para que cree una nueva contraseña
-    const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-        redirectTo: 'https://tu-dominio.com/reset-password', // Opcional: URL a tu página de reset
-    });
-
-    if (error) {
-        showMessage('Error: ' + error.message);
-    } else {
-        showMessage('Se ha enviado un enlace de recuperación a tu correo.');
-    }
-}
 async function register() {
     const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-
-    if (!name) return showMessage('⚠️ Por favor, ingresa tu nombre para registrarte.');
-    if (!email || !password) return showMessage('⚠️ Completa todos los campos.');
-
-    showMessage('Registrando...');
-
-    // Guardamos el nombre en los metadatos del usuario de Supabase
+    if (!name) return showMessage('⚠️ Ingresa tu nombre.');
+    
     const { data, error } = await supabaseClient.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-            data: {
-                full_name: name
-            }
-        }
+        email, password, options: { data: { full_name: name } }
     });
-
-    if (error) {
-        showMessage('Error: ' + error.message);
-    } else {
-        showMessage('✅ Registro exitoso. ¡Bienvenido ' + name + '!');
-        currentUser = data.user;
-        // Pequeña pausa para que el usuario lea el mensaje antes de cambiar de pantalla
-        setTimeout(() => {
-            initApp();
-        }, 1500);
-    }
+    if (error) return showMessage('Error: ' + error.message);
+    showMessage('✅ Registro exitoso. ¡Bienvenido ' + name + '!');
+    currentUser = data.user;
+    setTimeout(() => initApp(), 1500);
 }
 
-
-
-function showMessage(msg) {
-    document.getElementById('auth-message').innerText = msg;
-}
+function showMessage(msg) { document.getElementById('auth-message').innerText = msg; }
 
 function initApp() {
     showInterface('programmer-section');
-    
-    // Lógica para obtener el nombre: 
-    // 1. Busca en los metadatos de Supabase (si se registró con nombre)
-    // 2. Si no existe, usa la parte antes del @ del correo
-    // 3. Si todo falla, usa "Atleta"
-    const userName = currentUser.user_metadata?.full_name || 
-                    (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
-                    
+    const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
 }
 
@@ -119,16 +74,16 @@ function speakRandomGreeting(name) {
 
 function speak(text) {
     if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Evita acumulación de frases
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'es-ES';
-        utterance.rate = 1.15; // Un poco más rápido para fluidez
+        utterance.rate = 1.15;
         window.speechSynthesis.speak(utterance);
     }
 }
 
 // ==========================================
-// 3. PROGRAMADOR DE RUTINAS
+// 3. PROGRAMADOR DE RUTINAS (CON LÓGICA AVANZADA)
 // ==========================================
 function addExercise() {
     const ex = {
@@ -136,6 +91,8 @@ function addExercise() {
         sets: parseInt(document.getElementById('ex-sets').value) || 1,
         reps: parseInt(document.getElementById('ex-reps').value) || 1,
         weight: document.getElementById('ex-weight').value,
+        equipment: document.getElementById('ex-equipment').value,
+        quantity: parseInt(document.getElementById('ex-quantity').value),
         tempo: {
             ecc: parseInt(document.getElementById('tempo-ecc').value) || 0,
             pb: parseInt(document.getElementById('tempo-pb').value) || 0,
@@ -143,53 +100,123 @@ function addExercise() {
             pt: parseInt(document.getElementById('tempo-pt').value) || 0
         },
         rest: {
-            // ELIMINADO: rep: parseInt(...)
             set: parseInt(document.getElementById('rest-set').value) || 0,
+            trans: parseInt(document.getElementById('rest-trans').value) || 10,
             ex: parseInt(document.getElementById('rest-ex').value) || 0
         }
     };
 
     if (!ex.name) return alert('Ingresa un nombre de ejercicio');
 
-    currentRoutine.exercises.push(ex);
+    if (editIndex >= 0) {
+        currentRoutine.exercises[editIndex] = ex;
+        editIndex = -1;
+        document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
+    } else {
+        currentRoutine.exercises.push(ex);
+    }
+
     calculateTotalTime();
     renderExerciseList();
     
+    // Limpiar inputs
     document.getElementById('ex-name').value = '';
+    document.getElementById('ex-sets').value = '';
+    document.getElementById('ex-reps').value = '';
+    document.getElementById('ex-weight').value = '';
+}
+
+function editExercise(index) {
+    const ex = currentRoutine.exercises[index];
+    editIndex = index;
+    
+    document.getElementById('ex-name').value = ex.name;
+    document.getElementById('ex-sets').value = ex.sets;
+    document.getElementById('ex-reps').value = ex.reps;
+    document.getElementById('ex-weight').value = ex.weight;
+    document.getElementById('ex-equipment').value = ex.equipment;
+    document.getElementById('ex-quantity').value = ex.quantity;
+    document.getElementById('tempo-ecc').value = ex.tempo.ecc;
+    document.getElementById('tempo-pb').value = ex.tempo.pb;
+    document.getElementById('tempo-con').value = ex.tempo.con;
+    document.getElementById('tempo-pt').value = ex.tempo.pt;
+    document.getElementById('rest-set').value = ex.rest.set;
+    document.getElementById('rest-trans').value = ex.rest.trans;
+    document.getElementById('rest-ex').value = ex.rest.ex;
+    
+    document.querySelector('button[onclick="addExercise()"]').innerText = 'Guardar Cambios';
+    window.scrollTo(0, 0);
+}
+
+function deleteExercise(index) {
+    currentRoutine.exercises.splice(index, 1);
+    editIndex = -1;
+    document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
+    calculateTotalTime();
+    renderExerciseList();
 }
 
 function calculateTotalTime() {
-    let total = 40; // 40s de preparación inicial
+    let totalSeconds = 40; // Preparación inicial
+    
     currentRoutine.exercises.forEach(ex => {
+        const realSets = ex.sets * ex.quantity; // Caso A: x1, Caso B: x2
         const repCycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
-        // ELIMINADO: + ex.rest.rep del cálculo
-        const setTime = (repCycle * ex.reps) + ex.rest.set;
-        total += (setTime * ex.sets) + ex.rest.ex;
+        
+        for (let s = 1; s <= realSets; s++) {
+            totalSeconds += (repCycle * ex.reps); // Tiempo de ejecución
+            
+            if (s < realSets) {
+                if (ex.quantity === 1 && s % 2 !== 0) {
+                    totalSeconds += ex.rest.trans; // Descanso de transición (Lado A a B)
+                } else {
+                    totalSeconds += ex.rest.set; // Descanso completo
+                }
+            }
+        }
+        totalSeconds += ex.rest.ex; // Descanso entre ejercicios
     });
-    currentRoutine.totalTime = total;
-    document.getElementById('total-time-display').innerText = total;
+    
+    currentRoutine.totalTime = totalSeconds;
+    document.getElementById('total-time-display').innerText = formatTime(totalSeconds);
+}
+
+function formatTime(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function renderExerciseList() {
     const list = document.getElementById('exercise-list');
-    list.innerHTML = currentRoutine.exercises.map((ex, i) => 
-        `<li>${i+1}. ${ex.name} (${ex.sets}x${ex.reps}) - ${ex.weight}kg</li>`
-    ).join('');
+    list.innerHTML = currentRoutine.exercises.map((ex, i) => {
+        const realSets = ex.sets * ex.quantity;
+        const sideNote = ex.quantity === 1 ? ` (Se realizarán ${realSets} series alternadas)` : '';
+        return `
+        <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #ddd;">
+            <div>
+                <strong>${i+1}. ${ex.name}</strong> ${sideNote}<br>
+                <small>${ex.sets} series x ${ex.reps} reps | ${ex.equipment} (Cant: ${ex.quantity})</small>
+            </div>
+            <div>
+                <button onclick="editExercise(${i})" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0 5px;">✏️</button>
+                <button onclick="deleteExercise(${i})" class="danger" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0;">🗑️</button>
+            </div>
+        </li>`;
+    }).join('');
 }
 
 function saveAndStartRoutine() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
-    
     localStorage.setItem('pending_routine', JSON.stringify(currentRoutine));
-    syncToSupabase();
-    
     buildTimerQueue();
     showInterface('executor-section');
     speak("Dispondrás de 40 segundos para prepararte");
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y AUDIO AVANZADO)
+// 4. EJECUTOR (CRONOMETRAJE Y LÓGICA DE COLA AVANZADA)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -197,77 +224,51 @@ function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
 
-    switch(type) {
-        case 'eccentric':
-            const oscEcc = audioCtx.createOscillator();
-            const gainEcc = audioCtx.createGain();
-            oscEcc.connect(gainEcc); gainEcc.connect(audioCtx.destination);
-            oscEcc.type = 'sine';
-            oscEcc.frequency.setValueAtTime(250, now);
-            oscEcc.frequency.exponentialRampToValueAtTime(150, now + 0.5);
-            gainEcc.gain.setValueAtTime(0.5, now);
-            gainEcc.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-            oscEcc.start(now); oscEcc.stop(now + 0.8);
-            break;
-
-        case 'pause-bottom':
-            playDoubleBeep(now);
-            break;
-
-        case 'concentric':
-            const oscCon = audioCtx.createOscillator();
-            const gainCon = audioCtx.createGain();
-            oscCon.connect(gainCon); gainCon.connect(audioCtx.destination);
-            oscCon.type = 'sine';
-            oscCon.frequency.setValueAtTime(900, now);
-            oscCon.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
-            gainCon.gain.setValueAtTime(0.5, now);
-            gainCon.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
-            oscCon.start(now); oscCon.stop(now + 0.8);
-            break;
-
-        case 'pause-top':
-            playTripleBeep(now);
-            break;
-
-        case 'metronome':
-            const oscMet = audioCtx.createOscillator();
-            const gainMet = audioCtx.createGain();
-            oscMet.connect(gainMet); gainMet.connect(audioCtx.destination);
-            oscMet.type = 'square';
-            oscMet.frequency.setValueAtTime(1000, now);
-            oscMet.frequency.exponentialRampToValueAtTime(100, now + 0.05);
-            gainMet.gain.setValueAtTime(0.2, now);
-            gainMet.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
-            oscMet.start(now); oscMet.stop(now + 0.05);
-            break;
-
-        case 'transition':
-            const oscTrans = audioCtx.createOscillator();
-            const gainTrans = audioCtx.createGain();
-            oscTrans.connect(gainTrans); gainTrans.connect(audioCtx.destination);
-            oscTrans.type = 'sine';
-            oscTrans.frequency.setValueAtTime(400, now);
-            oscTrans.frequency.linearRampToValueAtTime(800, now + 0.3);
-            gainTrans.gain.setValueAtTime(0.4, now);
-            gainTrans.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-            oscTrans.start(now); oscTrans.stop(now + 0.3);
-            break;
+    if (type === 'metronome') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1000, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+    } else if (type === 'eccentric') {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(250, now);
+        osc.frequency.exponentialRampToValueAtTime(150, now + 0.5);
+        gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        osc.start(now); osc.stop(now + 0.8);
+    } else if (type === 'concentric') {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+        gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+        osc.start(now); osc.stop(now + 0.8);
+    } else if (type === 'pause-bottom') {
+        playDoubleBeep(now);
+    } else if (type === 'pause-top') {
+        playTripleBeep(now);
+    } else if (type === 'transition') {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(800, now + 0.3);
+        gain.gain.setValueAtTime(0.4, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
     }
 }
 
 function playDoubleBeep(time) {
     const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
     const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
-    osc1.connect(gain1); osc2.connect(gain2);
-    gain1.connect(audioCtx.destination); gain2.connect(audioCtx.destination);
-    
-    osc1.type = 'sine'; osc1.frequency.setValueAtTime(600, time);
-    gain1.gain.setValueAtTime(0.3, time); gain1.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
+    osc1.connect(gain1); osc2.connect(gain2); gain1.connect(audioCtx.destination); gain2.connect(audioCtx.destination);
+    osc1.type = 'sine'; osc1.frequency.setValueAtTime(600, time); gain1.gain.setValueAtTime(0.3, time); gain1.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
     osc1.start(time); osc1.stop(time + 0.1);
-    
-    osc2.type = 'sine'; osc2.frequency.setValueAtTime(600, time + 0.2);
-    gain2.gain.setValueAtTime(0.3, time + 0.2); gain2.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+    osc2.type = 'sine'; osc2.frequency.setValueAtTime(600, time + 0.2); gain2.gain.setValueAtTime(0.3, time + 0.2); gain2.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
     osc2.start(time + 0.2); osc2.stop(time + 0.3);
 }
 
@@ -276,8 +277,7 @@ function playTripleBeep(time) {
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(1200, time + (i * 0.15));
-        gain.gain.setValueAtTime(0.2, time + (i * 0.15));
-        gain.gain.exponentialRampToValueAtTime(0.01, time + (i * 0.15) + 0.08);
+        gain.gain.setValueAtTime(0.2, time + (i * 0.15)); gain.gain.exponentialRampToValueAtTime(0.01, time + (i * 0.15) + 0.08);
         osc.start(time + (i * 0.15)); osc.stop(time + (i * 0.15) + 0.08);
     }
 }
@@ -287,37 +287,68 @@ function buildTimerQueue() {
     queue.push({ phase: 'Preparación', duration: 40, action: 'prep' });
 
     currentRoutine.exercises.forEach((ex, exIndex) => {
-        for (let s = 1; s <= ex.sets; s++) {
-            for (let r = 1; r <= ex.reps; r++) {
-                const isFirstRep = (r === 1);
-                const phases = [];
-                
-                if (ex.tempo.ecc > 0) phases.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
-                if (ex.tempo.pb > 0) phases.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
-                if (ex.tempo.con > 0) phases.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
-                if (ex.tempo.pt > 0) phases.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
+        const realSets = ex.sets * ex.quantity;
+        const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
 
-                // Asignamos el nombre del ejercicio y el número de serie a cada fase
-                phases.forEach((p, index) => {
-                    queue.push({
-                        ...p,
-                        exerciseName: ex.name,
-                        setNumber: s,
-                        // Solo anunciamos el nombre en la MUY PRIMERA fase de la primera repetición
-                        isFirstPhaseOfRep: (isFirstRep && index === 0)
-                    });
+        for (let s = 1; s <= realSets; s++) {
+            // Determinar lado si es cantidad 1
+            const isSideA = (s % 2 !== 0);
+            const sideLabel = (ex.quantity === 1) ? (isSideA ? "Lado Izquierdo" : "Lado Derecho") : "";
+            const isFirstPhaseOfSet = true; // Simplificado para anunciar al inicio de la serie
+
+            // Fases de ejecución
+            const phases = [];
+            if (ex.tempo.ecc > 0) phases.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
+            if (ex.tempo.pb > 0) phases.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
+            if (ex.tempo.con > 0) phases.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
+            if (ex.tempo.pt > 0) phases.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
+
+            phases.forEach((p, idx) => {
+                queue.push({
+                    ...p,
+                    exerciseName: ex.name,
+                    setNumber: s,
+                    totalRealSets: realSets,
+                    sideLabel: sideLabel,
+                    isFirstPhaseOfSet: (idx === 0),
+                    nextExName: nextExName,
+                    isLastSetOfExercise: (s === realSets)
                 });
+            });
 
-                // ELIMINADO: Descanso entre repeticiones
+            // Lógica de Descansos
+            if (s < realSets) {
+                if (ex.quantity === 1 && isSideA) {
+                    // Caso B: Descanso de transición corto (Lado A a Lado B)
+                    queue.push({ 
+                        phase: 'Descanso de transición', 
+                        duration: ex.rest.trans, 
+                        action: 'rest-trans',
+                        exerciseName: ex.name,
+                        nextExName: nextExName
+                    });
+                } else {
+                    // Descanso completo entre series (o después del Lado B)
+                    queue.push({ 
+                        phase: 'Descanso entre series', 
+                        duration: ex.rest.set, 
+                        action: 'rest',
+                        exerciseName: ex.name,
+                        nextExName: nextExName
+                    });
+                }
+            } else {
+                // Fin del ejercicio completo
+                if (exIndex < currentRoutine.exercises.length - 1) {
+                    queue.push({ 
+                        phase: 'Descanso entre ejercicios', 
+                        duration: ex.rest.ex, 
+                        action: 'rest-exercise',
+                        exerciseName: ex.name,
+                        nextExName: nextExName
+                    });
+                }
             }
-            
-            if (s < ex.sets && ex.rest.set > 0) {
-                queue.push({ phase: 'Descanso entre series', duration: ex.rest.set, action: 'rest' });
-            }
-        }
-        
-        if (exIndex < currentRoutine.exercises.length - 1 && ex.rest.ex > 0) {
-            queue.push({ phase: 'Descanso entre ejercicios', duration: ex.rest.ex, action: 'rest-exercise' });
         }
     });
     
@@ -332,39 +363,40 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // ANUNCIOS DE VOZ AL INICIO EXACTO DE LA FASE
+    // ANUNCIOS DE VOZ
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación");
     } 
-    else if (item.action === 'ecc') {
-        if (item.isFirstPhaseOfRep) {
-            speak(`Serie ${item.setNumber}, ${item.exerciseName}. Exce`);
-        } else {
-            speak("Exce");
-        }
+    else if (item.action === 'ecc' && item.isFirstPhaseOfSet) {
+        const sideText = item.sideLabel ? `, ${item.sideLabel}` : "";
+        speak(`Serie ${item.setNumber} de ${item.totalRealSets}, ${item.exerciseName}${sideText}. Exce`);
         playSound('eccentric');
     } 
+    else if (item.action === 'ecc') {
+        speak("Exce"); playSound('eccentric');
+    }
     else if (item.action === 'pause-bottom') {
-        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
-        else speak("Pausa abajo");
-        playSound('pause-bottom');
+        speak("Pausa abajo"); playSound('pause-bottom');
     }
     else if (item.action === 'con') {
-        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
-        else speak("Conce");
-        playSound('concentric');
+        speak("Conce"); playSound('concentric');
     } 
     else if (item.action === 'pause-top') {
-        if (item.isFirstPhaseOfRep) speak(`Serie ${item.setNumber}, ${item.exerciseName}`);
-        else speak("Pausa arriba");
-        playSound('pause-top');
+        speak("Pausa arriba"); playSound('pause-top');
+    }
+    else if (item.action === 'rest-trans') {
+        speak("Cambio de lado, descanso breve");
     }
     else if (item.action === 'rest' || item.action === 'rest-exercise') {
-        speak("Descanso");
-        if (item.action === 'rest-exercise') playSound('transition');
+        if (item.action === 'rest-exercise') {
+            speak(`Fin del ejercicio. Cambiaremos a ${item.nextExName}`);
+            playSound('transition');
+        } else {
+            speak("Descanso");
+        }
     }
     else if (item.action === 'finish') {
-        speak("¡Felicidades! Rutina completada");
+        speak("Felicidades, has completado tu rutina");
         saveHistory();
         setTimeout(() => showInterface('history-section'), 3000);
         return;
@@ -372,10 +404,11 @@ function loadNextPhase() {
 }
 
 function updateTimerUI(item) {
-    // Mostrar nombre del ejercicio en la pantalla si está disponible
     let title = item.phase;
     if (item.exerciseName) {
-        title = `${item.exerciseName} - ${item.phase}`;
+        title = `${item.exerciseName}`;
+        if (item.sideLabel) title += ` (${item.sideLabel})`;
+        title += ` - Serie ${item.setNumber}/${item.totalRealSets}`;
     }
     document.getElementById('current-phase-title').innerText = title;
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
@@ -390,27 +423,25 @@ function updateTimerUI(item) {
 
 function tick() {
     if (isPaused) return;
-
     const currentItem = queue[currentQueueIndex];
 
-    // Anuncios de voz durante la cuenta regresiva
-    if (currentItem.action === 'prep') {
-        if (timeLeftInPhase === 20) speak("Veinte segundos");
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
-    } else if (currentItem.action === 'rest' || currentItem.action === 'rest-exercise') {
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
+    // Anuncios de voz durante cuenta regresiva (Prep y Descansos)
+    const isRest = (currentItem.action === 'prep' || currentItem.action === 'rest' || currentItem.action === 'rest-trans' || currentItem.action === 'rest-exercise');
+    
+    if (isRest) {
+        if (currentItem.action === 'prep' && timeLeftInPhase === 20) speak("Veinte segundos");
+        if (timeLeftInPhase === 20) speak("Veinte segundos"); // Para descansos largos
+        if (timeLeftInPhase <= 7 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
     }
 
-    // Decrementar el tiempo
     timeLeftInPhase--;
     updateTimerUI(currentItem);
 
-    // Metrónomo en cada segundo
-    if (timeLeftInPhase > 0) {
+    // METRÓNOMO: SOLO en los últimos 7 segundos de descansos o preparación
+    if (isRest && timeLeftInPhase <= 7 && timeLeftInPhase > 0) {
         playSound('metronome');
     }
 
-    // Verificar si terminó la fase actual
     if (timeLeftInPhase <= 0) {
         currentQueueIndex++;
         if (currentQueueIndex < queue.length) {
@@ -426,12 +457,8 @@ function toggleTimer() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     isPaused = !isPaused;
     document.getElementById('btn-start-pause').innerText = isPaused ? 'Reanudar' : 'Pausar';
-    
-    if (!isPaused) {
-        timerInterval = setInterval(tick, 1000);
-    } else {
-        clearInterval(timerInterval);
-    }
+    if (!isPaused) timerInterval = setInterval(tick, 1000);
+    else clearInterval(timerInterval);
 }
 
 function finishRoutine() {
@@ -453,39 +480,27 @@ async function saveHistory() {
         exercises: currentRoutine.exercises,
         total_time: currentRoutine.totalTime
     };
-
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history.push(record);
     localStorage.setItem('gym_history', JSON.stringify(history));
-
-    if (navigator.onLine && currentUser) {
-        await supabaseClient.from('routines').insert(record);
-    }
+    if (navigator.onLine && currentUser) await supabaseClient.from('routines').insert(record);
 }
 
 async function loadHistory() {
     const container = document.getElementById('history-list');
     container.innerHTML = '<p>Cargando...</p>';
-
-    const sixWeeksAgo = new Date();
-    sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
-
+    const sixWeeksAgo = new Date(); sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history = history.filter(h => new Date(h.date) >= sixWeeksAgo);
     localStorage.setItem('gym_history', JSON.stringify(history));
 
     if (navigator.onLine && currentUser) {
-        const { data, error } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
-        if (data) {
-            history = [...data, ...history].filter((v,i,a)=>a.findIndex(t=>(t.date===v.date && t.body_part===v.body_part))===i);
-        }
+        const { data } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
+        if (data) history = [...data, ...history].filter((v,i,a)=>a.findIndex(t=>(t.date===v.date && t.body_part===v.body_part))===i);
     }
 
     container.innerHTML = '';
-    if (history.length === 0) {
-        container.innerHTML = '<p>No hay registros recientes.</p>';
-        return;
-    }
+    if (history.length === 0) { container.innerHTML = '<p>No hay registros recientes.</p>'; return; }
 
     history.forEach((item, index) => {
         const div = document.createElement('div');
@@ -493,8 +508,8 @@ async function loadHistory() {
         div.innerHTML = `
             <button class="delete-btn" onclick="deleteHistory(${index})">×</button>
             <h3>${item.date} - ${item.body_part} (${item.day})</h3>
-            <p>Tiempo total: ${item.total_time}s</p>
-            <p><small>${item.exercises.map(e => e.name).join(', ')}</small></p>
+            <p>Tiempo total: ${formatTime(item.total_time)}</p>
+            <p><small>${item.exercises.map(e => e.name + (e.quantity===1 ? ' (Unilateral)' : '')).join(', ')}</small></p>
         `;
         container.appendChild(div);
     });
@@ -511,16 +526,12 @@ function deleteHistory(index) {
 // 6. UTILIDADES
 // ==========================================
 function showInterface(id) {
-    document.querySelectorAll('.interface').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.interface').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.interface').forEach(el => { el.classList.remove('active'); el.classList.add('hidden'); });
     document.getElementById(id).classList.remove('hidden');
     document.getElementById(id).classList.add('active');
 }
 
 function syncToSupabase() {
-    if (navigator.onLine && currentUser) {
-        // Sincronización en segundo plano
-    }
+    if (navigator.onLine && currentUser) { /* Sync logic */ }
 }
-
 window.addEventListener('online', syncToSupabase);
