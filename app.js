@@ -19,7 +19,31 @@ let timeLeftInPhase = 0;
 let editIndex = -1;
 
 // ==========================================
-// 1. AUTENTICACIÓN Y UTILIDADES UI
+// FUNCIÓN DE BLOQUEO INTELIGENTE
+// ==========================================
+function toggleQuantity() {
+    const equip = document.getElementById('ex-equipment');
+    const qty = document.getElementById('ex-quantity');
+    if (!equip || !qty) return;
+
+    if (equip.value === 'Sin equipo') {
+        qty.disabled = true;
+        qty.value = '2'; 
+    } else {
+        qty.disabled = false;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const equipSelect = document.getElementById('ex-equipment');
+    if (equipSelect) {
+        equipSelect.addEventListener('change', toggleQuantity);
+        toggleQuantity();
+    }
+});
+
+// ==========================================
+// 1. AUTENTICACIÓN
 // ==========================================
 async function login() {
     const email = document.getElementById('login-email').value;
@@ -49,21 +73,8 @@ function showMessage(msg) { document.getElementById('auth-message').innerText = 
 
 function initApp() {
     showInterface('programmer-section');
-    toggleQuantity(); // Asegurar estado inicial correcto
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
-}
-
-// Bloquea/desbloquea la cantidad según el equipamiento
-function toggleQuantity() {
-    const equip = document.getElementById('ex-equipment').value;
-    const qty = document.getElementById('ex-quantity');
-    if (equip === 'Sin equipo') {
-        qty.disabled = true;
-        qty.value = '2'; // Por defecto, no aplica unilateral
-    } else {
-        qty.disabled = false;
-    }
 }
 
 // ==========================================
@@ -150,7 +161,7 @@ function clearFormInputs() {
     document.getElementById('tempo-pt').value = '';
     document.getElementById('rest-set').value = '';
     document.getElementById('rest-ex').value = '';
-    toggleQuantity(); // Restablecer estado bloqueado
+    toggleQuantity();
 }
 
 function editExercise(index) {
@@ -169,7 +180,7 @@ function editExercise(index) {
     document.getElementById('rest-set').value = ex.rest.set;
     document.getElementById('rest-ex').value = ex.rest.ex;
     
-    toggleQuantity(); // Actualizar estado del selector
+    toggleQuantity();
     document.querySelector('button[onclick="addExercise()"]').innerText = 'Guardar Cambios';
     window.scrollTo(0, 0);
 }
@@ -182,9 +193,8 @@ function deleteExercise(index) {
     renderExerciseList();
 }
 
-// CÁLCULO DE TIEMPO CON LÓGICA DE ALTERNANCIA POR REPETICIÓN
 function calculateTotalTime() {
-    let totalSeconds = 40; // Preparación inicial
+    let totalSeconds = 40; 
     
     currentRoutine.exercises.forEach(ex => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
@@ -192,21 +202,17 @@ function calculateTotalTime() {
         
         for (let s = 1; s <= ex.sets; s++) {
             for (let r = 1; r <= ex.reps; r++) {
-                // 1. Tiempo del lado izquierdo (o único si no es unilateral)
-                totalSeconds += repCycle;
+                totalSeconds += repCycle; // Lado izquierdo (o único)
                 
-                // 2. Si es unilateral, agregar transición de 10s y tiempo del lado derecho
                 if (isUnilateral) {
-                    totalSeconds += 10; // Transición
+                    totalSeconds += 8; // TRANSICIÓN REDUCIDA A 8 SEGUNDOS
                     totalSeconds += repCycle; // Lado derecho
                 }
             }
-            // 3. Descanso completo al finalizar todas las repeticiones de la serie
             if (s < ex.sets) {
                 totalSeconds += ex.rest.set;
             }
         }
-        // 4. Descanso entre ejercicios
         totalSeconds += ex.rest.ex;
     });
     
@@ -249,7 +255,7 @@ function saveAndStartRoutine() {
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y COLA DE ALTERNANCIA)
+// 4. EJECUTOR (CRONOMETRAJE Y LÓGICA DE VOZ REFINADA)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -265,7 +271,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
     } else if (type === 'eccentric') {
-        window.speechSynthesis.cancel(); // Prioridad al sonido del tempo
+        window.speechSynthesis.cancel(); 
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(250, now);
@@ -273,7 +279,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
         osc.start(now); osc.stop(now + 0.8);
     } else if (type === 'concentric') {
-        window.speechSynthesis.cancel(); // Prioridad al sonido del tempo
+        window.speechSynthesis.cancel(); 
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(900, now);
@@ -314,7 +320,6 @@ function playTripleBeep(time) {
     }
 }
 
-// GENERACIÓN DE COLA CON ALTERNANCIA POR REPETICIÓN
 function buildTimerQueue() {
     queue = [];
     queue.push({ phase: 'Preparación', duration: 40, action: 'prep' });
@@ -323,279 +328,5 @@ function buildTimerQueue() {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
         const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
 
-        // BUCLE DE SERIES
         for (let s = 1; s <= ex.sets; s++) {
-            
-            // BUCLE DE REPETICIONES (Aquí ocurre la alternancia)
-            for (let r = 1; r <= ex.reps; r++) {
-                
-                // --- 1. FASES DEL LADO IZQUIERDO (O ÚNICO) ---
-                const phasesLeft = [];
-                if (ex.tempo.ecc > 0) phasesLeft.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
-                if (ex.tempo.pb > 0) phasesLeft.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
-                if (ex.tempo.con > 0) phasesLeft.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
-                if (ex.tempo.pt > 0) phasesLeft.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
-
-                phasesLeft.forEach((p, idx) => {
-                    queue.push({
-                        ...p,
-                        exerciseName: ex.name,
-                        setNumber: s,
-                        repNumber: r,
-                        totalReps: ex.reps,
-                        totalSets: ex.sets,
-                        sideLabel: isUnilateral ? "Izquierda" : "",
-                        isFirstPhaseOfRep: (idx === 0),
-                        isUnilateral: isUnilateral
-                    });
-                });
-
-                // --- 2. TRANSICIÓN (Solo si es unilateral) ---
-                if (isUnilateral) {
-                    queue.push({
-                        phase: 'Transición',
-                        duration: 10,
-                        action: 'rest-trans',
-                        exerciseName: ex.name,
-                        setNumber: s,
-                        repNumber: r,
-                        totalReps: ex.reps,
-                        totalSets: ex.sets,
-                        nextSide: "Derecha"
-                    });
-                }
-
-                // --- 3. FASES DEL LADO DERECHO (Solo si es unilateral) ---
-                if (isUnilateral) {
-                    const phasesRight = [];
-                    if (ex.tempo.ecc > 0) phasesRight.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
-                    if (ex.tempo.pb > 0) phasesRight.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
-                    if (ex.tempo.con > 0) phasesRight.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
-                    if (ex.tempo.pt > 0) phasesRight.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
-
-                    phasesRight.forEach((p, idx) => {
-                        queue.push({
-                            ...p,
-                            exerciseName: ex.name,
-                            setNumber: s,
-                            repNumber: r,
-                            totalReps: ex.reps,
-                            totalSets: ex.sets,
-                            sideLabel: "Derecha",
-                            isFirstPhaseOfRep: (idx === 0),
-                            isUnilateral: true
-                        });
-                    });
-                }
-            } // Fin del bucle de repeticiones
-
-            // --- 4. DESCANSO COMPLETO DE SERIE ---
-            if (s < ex.sets) {
-                queue.push({
-                    phase: 'Descanso entre series',
-                    duration: ex.rest.set,
-                    action: 'rest',
-                    exerciseName: ex.name,
-                    setNumber: s,
-                    totalSets: ex.sets
-                });
-            }
-        } // Fin del bucle de series
-
-        // --- 5. DESCANSO ENTRE EJERCICIOS ---
-        if (exIndex < currentRoutine.exercises.length - 1) {
-            queue.push({
-                phase: 'Descanso entre ejercicios',
-                duration: ex.rest.ex,
-                action: 'rest-exercise',
-                exerciseName: ex.name,
-                nextExName: nextExName
-            });
-        }
-    });
-
-    queue.push({ phase: '¡Rutina Finalizada!', duration: 5, action: 'finish' });
-    currentQueueIndex = 0;
-    loadNextPhase();
-}
-
-function loadNextPhase() {
-    if (currentQueueIndex >= queue.length) return;
-    const item = queue[currentQueueIndex];
-    timeLeftInPhase = item.duration;
-    updateTimerUI(item);
-
-    if (item.action === 'prep' && timeLeftInPhase === 40) {
-        speak("Comienza la preparación", 1.1);
-    } 
-    else if (item.action === 'ecc' && item.isFirstPhaseOfRep) {
-        if (item.isUnilateral) {
-            speak(item.sideLabel, 1.2); // Solo dice "Izquierda" o "Derecha"
-        } else {
-            speak(`Serie ${item.setNumber}. Exce`, 1.2);
-        }
-        playSound('eccentric');
-    } 
-    else if (item.action === 'ecc') {
-        speak("Exce", 1.3); playSound('eccentric');
-    }
-    else if (item.action === 'pause-bottom') {
-        speak("Pausa abajo", 1.3); playSound('pause-bottom');
-    }
-    else if (item.action === 'con') {
-        speak("Conce", 1.3); playSound('concentric');
-    } 
-    else if (item.action === 'pause-top') {
-        speak("Pausa arriba", 1.3); playSound('pause-top');
-    }
-    else if (item.action === 'rest-trans') {
-        speak(item.nextSide, 1.3); // Dice "Derecha" para indicar el cambio
-    }
-    else if (item.action === 'rest' || item.action === 'rest-exercise') {
-        if (item.action === 'rest-exercise') {
-            speak(`Siguiente: ${item.nextExName}`, 1.2);
-            playSound('transition');
-        } else {
-            speak("Descanso", 1.2);
-        }
-    }
-    else if (item.action === 'finish') {
-        speak("Felicidades, has completado tu rutina", 1.1);
-        saveHistory();
-        clearRoutine();
-        setTimeout(() => showInterface('history-section'), 3000);
-        return;
-    }
-}
-
-function updateTimerUI(item) {
-    let title = item.phase;
-    if (item.exerciseName) {
-        title = `${item.exerciseName}`;
-        if (item.sideLabel) title += ` (${item.sideLabel})`;
-        title += ` - Serie ${item.setNumber}/${item.totalSets} | Rep ${item.repNumber}/${item.totalReps}`;
-    }
-    document.getElementById('current-phase-title').innerText = title;
-    document.getElementById('timer-seconds').innerText = timeLeftInPhase;
-    
-    const circle = document.querySelector('.progress-ring__circle');
-    const radius = circle.r.baseVal.value;
-    const circumference = radius * 2 * Math.PI;
-    circle.style.strokeDasharray = `${circumference} ${circumference}`;
-    const offset = circumference - (timeLeftInPhase / item.duration) * circumference;
-    circle.style.strokeDashoffset = offset;
-}
-
-function tick() {
-    if (isPaused) return;
-    const currentItem = queue[currentQueueIndex];
-    const isRestPhase = (currentItem.action === 'prep' || currentItem.action === 'rest' || currentItem.action === 'rest-trans' || currentItem.action === 'rest-exercise');
-    
-    if (isRestPhase) {
-        if (timeLeftInPhase === 20) speak("20 segundos", 1.2);
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) playSound('metronome');
-        if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString(), 1.2);
-    }
-
-    timeLeftInPhase--;
-    updateTimerUI(currentItem);
-
-    if (timeLeftInPhase <= 0) {
-        currentQueueIndex++;
-        if (currentQueueIndex < queue.length) loadNextPhase();
-        else { clearInterval(timerInterval); finishRoutine(); }
-    }
-}
-
-function toggleTimer() {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    isPaused = !isPaused;
-    document.getElementById('btn-start-pause').innerText = isPaused ? 'Reanudar' : 'Pausar';
-    if (!isPaused) timerInterval = setInterval(tick, 1000);
-    else clearInterval(timerInterval);
-}
-
-function finishRoutine() {
-    clearInterval(timerInterval);
-    speak("Rutina finalizada manualmente", 1.1);
-    saveHistory();
-    clearRoutine();
-    showInterface('history-section');
-}
-
-function clearRoutine() {
-    currentRoutine = { exercises: [], totalTime: 0 };
-    editIndex = -1;
-    clearFormInputs();
-    document.getElementById('total-time-display').innerText = '00:00';
-    document.getElementById('exercise-list').innerHTML = '';
-    document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
-}
-
-// ==========================================
-// 5. HISTORIAL Y SUPABASE
-// ==========================================
-async function saveHistory() {
-    const record = {
-        user_id: currentUser ? currentUser.id : 'guest',
-        date: new Date().toISOString().split('T')[0],
-        body_part: document.getElementById('body-part').value,
-        day: document.getElementById('training-day').value,
-        exercises: currentRoutine.exercises,
-        total_time: currentRoutine.totalTime
-    };
-    let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
-    history.push(record);
-    localStorage.setItem('gym_history', JSON.stringify(history));
-    if (navigator.onLine && currentUser) await supabaseClient.from('routines').insert(record);
-}
-
-async function loadHistory() {
-    const container = document.getElementById('history-list');
-    container.innerHTML = '<p>Cargando...</p>';
-    const sixWeeksAgo = new Date(); sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
-    let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
-    history = history.filter(h => new Date(h.date) >= sixWeeksAgo);
-    localStorage.setItem('gym_history', JSON.stringify(history));
-
-    if (navigator.onLine && currentUser) {
-        const { data } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
-        if (data) history = [...data, ...history].filter((v,i,a)=>a.findIndex(t=>(t.date===v.date && t.body_part===v.body_part))===i);
-    }
-
-    container.innerHTML = '';
-    if (history.length === 0) { container.innerHTML = '<p>No hay registros recientes.</p>'; return; }
-
-    history.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = 'history-item';
-        div.innerHTML = `
-            <button class="delete-btn" onclick="deleteHistory(${index})">×</button>
-            <h3>${item.date} - ${item.body_part} (${item.day})</h3>
-            <p>Tiempo total: ${formatTime(item.total_time)}</p>
-            <p><small>${item.exercises.map(e => e.name + (e.equipment !== 'Sin equipo' && e.quantity === 1 ? ' (Unilateral)' : '')).join(', ')}</small></p>
-        `;
-        container.appendChild(div);
-    });
-}
-
-function deleteHistory(index) {
-    let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
-    history.splice(index, 1);
-    localStorage.setItem('gym_history', JSON.stringify(history));
-    loadHistory();
-}
-
-// ==========================================
-// 6. UTILIDADES
-// ==========================================
-function showInterface(id) {
-    document.querySelectorAll('.interface').forEach(el => { el.classList.remove('active'); el.classList.add('hidden'); });
-    document.getElementById(id).classList.remove('hidden');
-    document.getElementById(id).classList.add('active');
-}
-
-function syncToSupabase() {
-    if (navigator.onLine && currentUser) { /* Sync logic */ }
-}
-window.addEventListener('online', syncToSupabase);
+            for (let
