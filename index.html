@@ -54,9 +54,12 @@
                 <div class="form-group">
                     <label>Día de entrenamiento:</label>
                     <select id="training-day">
-                        <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
-                        <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
-                        <option value="Viernes">Viernes</option><option value="Sábado">Sábado</option>
+                        <option value="Lunes">Lunes</option>
+                        <option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option>
+                        <option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option>
+                        <option value="Sábado">Sábado</option>
                         <option value="Domingo">Domingo</option>
                     </select>
                 </div>
@@ -81,7 +84,7 @@
                             <option value="Máquinas de poleas y cables">Máquinas de poleas y cables</option>
                             <option value="Máquinas de peso guiado">Máquinas de peso guiado</option>
                             <option value="Bandas de resistencia">Bandas de resistencia</option>
-                            <option value="Bancos de entrenamiento">Bancos de entrenamiento</option
+                            <option value="Bancos de entrenamiento">Bancos de entrenamiento</option>
                         </select>
                         <select id="ex-quantity" style="flex: 1;">
                             <option value="2">2 (Simultáneo)</option>
@@ -99,14 +102,13 @@
                     <p class="sub-title">Descansos (segundos):</p>
                     <div class="row">
                         <input type="number" id="rest-set" placeholder="Entre Series (Completo)" min="0">
-                        <input type="number" id="rest-trans" placeholder="Transición (Lado A a B)" value="10" min="0">
                         <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
                     </div>
                     <button class="secondary" onclick="addExercise()">Añadir Ejercicio</button>
                 </div>
 
                 <div id="routine-summary" class="summary-box">
-                    <p>Tiempo total estimado: <span id="total-time-display" style="font-weight: bold; font-size: 1.2em;">00:00:00</span></p>
+                    <p>Tiempo total estimado: <span id="total-time-display" style="font-weight: bold; font-size: 1.2em;">00:00</span></p>
                     <ul id="exercise-list"></ul>
                 </div>
 
