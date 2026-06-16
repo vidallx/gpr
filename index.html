@@ -39,10 +39,15 @@
             </div>
         </section>
 
-                <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
+        <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
         <section id="programmer-section" class="interface hidden">
             <div class="card">
-                <h2>Programar Rutina</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">Programar Rutina</h2>
+                    <!-- BOTÓN DE HISTORIAL AGREGADO AQUÍ -->
+                    <button onclick="showInterface('history-section'); loadHistory();" style="width: auto; padding: 8px 15px; font-size: 14px; background: #0C047D; color: white; border: none; border-radius: 8px;">📜 Historial</button>
+                </div>
+                
                 <div class="form-group">
                     <label>Tipo de Entrenamiento:</label>
                     <select id="body-part">
@@ -54,12 +59,9 @@
                 <div class="form-group">
                     <label>Día de entrenamiento:</label>
                     <select id="training-day">
-                        <option value="Lunes">Lunes</option>
-                        <option value="Martes">Martes</option>
-                        <option value="Miércoles">Miércoles</option>
-                        <option value="Jueves">Jueves</option>
-                        <option value="Viernes">Viernes</option>
-                        <option value="Sábado">Sábado</option>
+                        <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option><option value="Sábado">Sábado</option>
                         <option value="Domingo">Domingo</option>
                     </select>
                 </div>
@@ -101,7 +103,7 @@
                     </div>
                     <p class="sub-title">Descansos (segundos):</p>
                     <div class="row">
-                        <input type="number" id="rest-set" placeholder="Entre Series (Completo)" min="0">
+                        <input type="number" id="rest-set" placeholder="Entre Series" min="0">
                         <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
                     </div>
                     <button class="secondary" onclick="addExercise()">Añadir Ejercicio</button>
@@ -139,11 +141,13 @@
             </div>
         </section>
 
-        <!-- INTERFASE 4: HISTORIAL -->
+         <!-- INTERFASE 4: HISTORIAL -->
         <section id="history-section" class="interface hidden">
             <div class="card">
-                <h2>Historial de Rutinas</h2>
-                <button class="secondary" onclick="showInterface('programmer-section')">Volver al Programador</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">Historial de Rutinas</h2>
+                    <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px;">⬅ Volver</button>
+                </div>
                 <div id="history-list" class="history-container">
                     <!-- Se llena dinámicamente -->
                 </div>
