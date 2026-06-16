@@ -74,9 +74,10 @@
                         <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
                     </div>
                     
-                    <p class="sub-title">Equipamiento y Cantidad:</p>
+                                        <p class="sub-title">Equipamiento y Cantidad:</p>
                     <div class="row">
-                        <select id="ex-equipment" style="flex: 2;">
+                        <!-- Se agregó onchange="toggleQuantity()" -->
+                        <select id="ex-equipment" style="flex: 2;" onchange="toggleQuantity()">
                             <option value="Sin equipo" selected>Sin equipo</option>
                             <option value="Mancuernas">Mancuernas</option>
                             <option value="Barras">Barras</option>
@@ -88,12 +89,11 @@
                             <option value="Bandas de resistencia">Bandas de resistencia</option>
                             <option value="Bancos de entrenamiento">Bancos de entrenamiento</option>
                         </select>
-                        <select id="ex-quantity" style="flex: 1;">
+                        <select id="ex-quantity" style="flex: 1;" disabled>
                             <option value="2">2 (Simultáneo)</option>
                             <option value="1">1 (Unilateral)</option>
                         </select>
                     </div>
-
                     <p class="sub-title">Tempo (segundos):</p>
                     <div class="row">
                         <input type="number" id="tempo-ecc" placeholder="Excéntrico" min="0">
