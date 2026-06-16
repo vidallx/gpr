@@ -39,7 +39,7 @@
             </div>
         </section>
 
-        <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
+                <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
         <section id="programmer-section" class="interface hidden">
             <div class="card">
                 <h2>Programar Rutina</h2>
@@ -54,23 +54,40 @@
                 <div class="form-group">
                     <label>Día de entrenamiento:</label>
                     <select id="training-day">
-                        <option value="Lunes">Lunes</option>
-                        <option value="Martes">Martes</option>
-                        <option value="Miércoles">Miércoles</option>
-                        <option value="Jueves">Jueves</option>
-                        <option value="Viernes">Viernes</option>
-                        <option value="Sábado">Sábado</option>
+                        <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option><option value="Sábado">Sábado</option>
                         <option value="Domingo">Domingo</option>
                     </select>
                 </div>
                 
                 <div class="exercise-inputs">
-                    <input type="text" id="ex-name" placeholder="Nombre del ejercicio (ej: Sentadilla)">
+                    <input type="text" id="ex-name" placeholder="Nombre del ejercicio (ej: Press de banca)">
                     <div class="row">
                         <input type="number" id="ex-sets" placeholder="Series" min="1">
                         <input type="number" id="ex-reps" placeholder="Repeticiones" min="1">
                         <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
                     </div>
+                    
+                    <p class="sub-title">Equipamiento y Cantidad:</p>
+                    <div class="row">
+                        <select id="ex-equipment" style="flex: 2;">
+                            <option value="Mancuernas">Mancuernas</option>
+                            <option value="Barras">Barras</option>
+                            <option value="Pesas rusas">Pesas rusas</option>
+                            <option value="Discos">Discos</option>
+                            <option value="Bolas medicinales">Bolas medicinales</option>
+                            <option value="Máquinas de poleas y cables">Máquinas de poleas y cables</option>
+                            <option value="Máquinas de peso guiado">Máquinas de peso guiado</option>
+                            <option value="Bandas de resistencia">Bandas de resistencia</option>
+                            <option value="Bancos de entrenamiento">Bancos de entrenamiento</option>
+                        </select>
+                        <select id="ex-quantity" style="flex: 1;">
+                            <option value="2">2 (Simultáneo)</option>
+                            <option value="1">1 (Unilateral)</option>
+                        </select>
+                    </div>
+
                     <p class="sub-title">Tempo (segundos):</p>
                     <div class="row">
                         <input type="number" id="tempo-ecc" placeholder="Excéntrico" min="0">
@@ -80,15 +97,15 @@
                     </div>
                     <p class="sub-title">Descansos (segundos):</p>
                     <div class="row">
-                        <!-- ELIMINADO: Descanso entre repeticiones -->
-                        <input type="number" id="rest-set" placeholder="Entre Series" min="0">
+                        <input type="number" id="rest-set" placeholder="Entre Series (Completo)" min="0">
+                        <input type="number" id="rest-trans" placeholder="Transición (Lado A a B)" value="10" min="0">
                         <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
                     </div>
                     <button class="secondary" onclick="addExercise()">Añadir Ejercicio</button>
                 </div>
 
                 <div id="routine-summary" class="summary-box">
-                    <p>Tiempo total estimado: <span id="total-time-display">0</span> segundos</p>
+                    <p>Tiempo total estimado: <span id="total-time-display" style="font-weight: bold; font-size: 1.2em;">00:00:00</span></p>
                     <ul id="exercise-list"></ul>
                 </div>
 
