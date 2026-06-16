@@ -16,7 +16,7 @@ let isPaused = true;
 let queue = []; 
 let currentQueueIndex = 0;
 let timeLeftInPhase = 0;
-let editIndex = -1; // Para la función de modificar
+let editIndex = -1;
 
 // ==========================================
 // 1. AUTENTICACIÓN
@@ -83,7 +83,7 @@ function speak(text) {
 }
 
 // ==========================================
-// 3. PROGRAMADOR DE RUTINAS (CON LÓGICA AVANZADA)
+// 3. PROGRAMADOR DE RUTINAS (LÓGICA DE 3 CASOS)
 // ==========================================
 function addExercise() {
     const ex = {
@@ -101,7 +101,6 @@ function addExercise() {
         },
         rest: {
             set: parseInt(document.getElementById('rest-set').value) || 0,
-            trans: parseInt(document.getElementById('rest-trans').value) || 10,
             ex: parseInt(document.getElementById('rest-ex').value) || 0
         }
     };
@@ -118,18 +117,27 @@ function addExercise() {
 
     calculateTotalTime();
     renderExerciseList();
-    
-    // Limpiar inputs
+    clearFormInputs();
+}
+
+function clearFormInputs() {
     document.getElementById('ex-name').value = '';
     document.getElementById('ex-sets').value = '';
     document.getElementById('ex-reps').value = '';
     document.getElementById('ex-weight').value = '';
+    document.getElementById('ex-equipment').value = 'Sin equipo'; // Default
+    document.getElementById('ex-quantity').value = '2';
+    document.getElementById('tempo-ecc').value = '';
+    document.getElementById('tempo-pb').value = '';
+    document.getElementById('tempo-con').value = '';
+    document.getElementById('tempo-pt').value = '';
+    document.getElementById('rest-set').value = '';
+    document.getElementById('rest-ex').value = '';
 }
 
 function editExercise(index) {
     const ex = currentRoutine.exercises[index];
     editIndex = index;
-    
     document.getElementById('ex-name').value = ex.name;
     document.getElementById('ex-sets').value = ex.sets;
     document.getElementById('ex-reps').value = ex.reps;
@@ -141,9 +149,7 @@ function editExercise(index) {
     document.getElementById('tempo-con').value = ex.tempo.con;
     document.getElementById('tempo-pt').value = ex.tempo.pt;
     document.getElementById('rest-set').value = ex.rest.set;
-    document.getElementById('rest-trans').value = ex.rest.trans;
     document.getElementById('rest-ex').value = ex.rest.ex;
-    
     document.querySelector('button[onclick="addExercise()"]').innerText = 'Guardar Cambios';
     window.scrollTo(0, 0);
 }
@@ -160,15 +166,17 @@ function calculateTotalTime() {
     let totalSeconds = 40; // Preparación inicial
     
     currentRoutine.exercises.forEach(ex => {
-        const realSets = ex.sets * ex.quantity; // Caso A: x1, Caso B: x2
+        // LÓGICA DE CASOS A, B y C
+        const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
+        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
         const repCycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
         
         for (let s = 1; s <= realSets; s++) {
             totalSeconds += (repCycle * ex.reps); // Tiempo de ejecución
             
             if (s < realSets) {
-                if (ex.quantity === 1 && s % 2 !== 0) {
-                    totalSeconds += ex.rest.trans; // Descanso de transición (Lado A a B)
+                if (isUnilateral && (s % 2 !== 0)) {
+                    totalSeconds += 10; // Transición fija de 10s entre lado A y B
                 } else {
                     totalSeconds += ex.rest.set; // Descanso completo
                 }
@@ -185,23 +193,29 @@ function formatTime(totalSeconds) {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
     const s = totalSeconds % 60;
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    // Formato inteligente: si hay horas, muestra HH:MM:SS, si no, MM:SS
+    if (h > 0) {
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    } else {
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
 }
 
 function renderExerciseList() {
     const list = document.getElementById('exercise-list');
     list.innerHTML = currentRoutine.exercises.map((ex, i) => {
-        const realSets = ex.sets * ex.quantity;
-        const sideNote = ex.quantity === 1 ? ` (Se realizarán ${realSets} series alternadas)` : '';
+        const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
+        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
+        const note = isUnilateral ? ` (Se realizarán ${realSets} series alternadas)` : '';
         return `
         <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #ddd;">
             <div>
-                <strong>${i+1}. ${ex.name}</strong> ${sideNote}<br>
+                <strong>${i+1}. ${ex.name}</strong> ${note}<br>
                 <small>${ex.sets} series x ${ex.reps} reps | ${ex.equipment} (Cant: ${ex.quantity})</small>
             </div>
             <div>
-                <button onclick="editExercise(${i})" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0 5px;">✏️</button>
-                <button onclick="deleteExercise(${i})" class="danger" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0;">🗑️</button>
+                <button onclick="editExercise(${i})" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0 5px; background: #ffc107; color: #000; border: none; border-radius: 5px; cursor: pointer;">✏️</button>
+                <button onclick="deleteExercise(${i})" style="width: auto; padding: 5px 10px; font-size: 12px; margin: 0; background: #ff4444; color: #fff; border: none; border-radius: 5px; cursor: pointer;">🗑️</button>
             </div>
         </li>`;
     }).join('');
@@ -216,7 +230,7 @@ function saveAndStartRoutine() {
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y LÓGICA DE COLA AVANZADA)
+// 4. EJECUTOR (CRONOMETRAJE Y LÓGICA DE COLA)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -287,14 +301,14 @@ function buildTimerQueue() {
     queue.push({ phase: 'Preparación', duration: 40, action: 'prep' });
 
     currentRoutine.exercises.forEach((ex, exIndex) => {
-        const realSets = ex.sets * ex.quantity;
+        // LÓGICA ESTRICTA DE CASOS A, B y C
+        const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
+        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
         const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
 
         for (let s = 1; s <= realSets; s++) {
-            // Determinar lado si es cantidad 1
-            const isSideA = (s % 2 !== 0);
-            const sideLabel = (ex.quantity === 1) ? (isSideA ? "Lado Izquierdo" : "Lado Derecho") : "";
-            const isFirstPhaseOfSet = true; // Simplificado para anunciar al inicio de la serie
+            const isLeft = isUnilateral ? (s % 2 !== 0) : false;
+            const sideLabel = isUnilateral ? (isLeft ? "Lado Izquierdo" : "Lado Derecho") : "";
 
             // Fases de ejecución
             const phases = [];
@@ -311,30 +325,32 @@ function buildTimerQueue() {
                     totalRealSets: realSets,
                     sideLabel: sideLabel,
                     isFirstPhaseOfSet: (idx === 0),
-                    nextExName: nextExName,
-                    isLastSetOfExercise: (s === realSets)
+                    isUnilateral: isUnilateral
                 });
             });
 
             // Lógica de Descansos
             if (s < realSets) {
-                if (ex.quantity === 1 && isSideA) {
-                    // Caso B: Descanso de transición corto (Lado A a Lado B)
+                if (isUnilateral && isLeft) {
+                    // CASO C: Transición de 10s entre Lado Izquierdo y Derecho
                     queue.push({ 
-                        phase: 'Descanso de transición', 
-                        duration: ex.rest.trans, 
+                        phase: 'Transición', 
+                        duration: 10, 
                         action: 'rest-trans',
                         exerciseName: ex.name,
-                        nextExName: nextExName
+                        setNumber: s,
+                        totalRealSets: realSets,
+                        nextSide: "Derecho"
                     });
                 } else {
-                    // Descanso completo entre series (o después del Lado B)
+                    // Descanso completo (Después del Lado Derecho, o en Casos A y B)
                     queue.push({ 
-                        phase: 'Descanso entre series', 
+                        phase: 'Descanso', 
                         duration: ex.rest.set, 
                         action: 'rest',
                         exerciseName: ex.name,
-                        nextExName: nextExName
+                        setNumber: s,
+                        totalRealSets: realSets
                     });
                 }
             } else {
@@ -363,7 +379,7 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // ANUNCIOS DE VOZ
+    // ANUNCIOS DE VOZ AL INICIO DE FASE
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación");
     } 
@@ -385,7 +401,7 @@ function loadNextPhase() {
         speak("Pausa arriba"); playSound('pause-top');
     }
     else if (item.action === 'rest-trans') {
-        speak("Cambio de lado, descanso breve");
+        speak(`Cambio a lado ${item.nextSide}`);
     }
     else if (item.action === 'rest' || item.action === 'rest-exercise') {
         if (item.action === 'rest-exercise') {
@@ -398,6 +414,7 @@ function loadNextPhase() {
     else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina");
         saveHistory();
+        clearRoutine(); // LIMPIEZA AUTOMÁTICA POST-RUTINA
         setTimeout(() => showInterface('history-section'), 3000);
         return;
     }
@@ -425,22 +442,25 @@ function tick() {
     if (isPaused) return;
     const currentItem = queue[currentQueueIndex];
 
-    // Anuncios de voz durante cuenta regresiva (Prep y Descansos)
-    const isRest = (currentItem.action === 'prep' || currentItem.action === 'rest' || currentItem.action === 'rest-trans' || currentItem.action === 'rest-exercise');
+    // LÓGICA DE METRÓNOMO Y VOZ EN DESCANSOS/PREPARACIÓN
+    const isRestPhase = (currentItem.action === 'prep' || currentItem.action === 'rest' || currentItem.action === 'rest-trans' || currentItem.action === 'rest-exercise');
     
-    if (isRest) {
-        if (currentItem.action === 'prep' && timeLeftInPhase === 20) speak("Veinte segundos");
-        if (timeLeftInPhase === 20) speak("Veinte segundos"); // Para descansos largos
-        if (timeLeftInPhase <= 7 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString());
+    if (isRestPhase) {
+        if (timeLeftInPhase === 20) speak("20 segundos");
+        
+        // Metrónomo solo en los últimos 5 segundos
+        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) {
+            playSound('metronome');
+        }
+        
+        // Voz contando solo los últimos 3 segundos
+        if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) {
+            speak(timeLeftInPhase.toString());
+        }
     }
 
     timeLeftInPhase--;
     updateTimerUI(currentItem);
-
-    // METRÓNOMO: SOLO en los últimos 7 segundos de descansos o preparación
-    if (isRest && timeLeftInPhase <= 7 && timeLeftInPhase > 0) {
-        playSound('metronome');
-    }
 
     if (timeLeftInPhase <= 0) {
         currentQueueIndex++;
@@ -465,7 +485,18 @@ function finishRoutine() {
     clearInterval(timerInterval);
     speak("Rutina finalizada manualmente");
     saveHistory();
+    clearRoutine(); // LIMPIEZA AUTOMÁTICA
     showInterface('history-section');
+}
+
+// FUNCIÓN DE LIMPIEZA POST-RUTINA
+function clearRoutine() {
+    currentRoutine = { exercises: [], totalTime: 0 };
+    editIndex = -1;
+    clearFormInputs();
+    document.getElementById('total-time-display').innerText = '00:00';
+    document.getElementById('exercise-list').innerHTML = '';
+    document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
 }
 
 // ==========================================
@@ -509,7 +540,7 @@ async function loadHistory() {
             <button class="delete-btn" onclick="deleteHistory(${index})">×</button>
             <h3>${item.date} - ${item.body_part} (${item.day})</h3>
             <p>Tiempo total: ${formatTime(item.total_time)}</p>
-            <p><small>${item.exercises.map(e => e.name + (e.quantity===1 ? ' (Unilateral)' : '')).join(', ')}</small></p>
+            <p><small>${item.exercises.map(e => e.name + (e.equipment !== 'Sin equipo' && e.quantity === 1 ? ' (Unilateral)' : '')).join(', ')}</small></p>
         `;
         container.appendChild(div);
     });
