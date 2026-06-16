@@ -54,7 +54,7 @@ function initApp() {
 }
 
 // ==========================================
-// 2. ASISTENTE DE VOZ (OPTIMIZADO PARA NO INTERFERIR)
+// 2. ASISTENTE DE VOZ (OPTIMIZADO)
 // ==========================================
 const phrases = [
     "Bienvenido {name}, listo para sudar", "Vamos a romperla hoy, {name}", "El dolor es temporal, la gloria es eterna, {name}",
@@ -72,13 +72,12 @@ function speakRandomGreeting(name) {
     speak(randomPhrase, 1.1);
 }
 
-// Función de voz con velocidad ajustable para evitar interferencias
 function speak(text, rate = 1.1) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel(); // Limpia la cola para evitar solapamiento
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'es-ES';
-        utterance.rate = rate; // Velocidad ajustable (más rápido para transiciones)
+        utterance.rate = rate;
         window.speechSynthesis.speak(utterance);
     }
 }
@@ -216,7 +215,6 @@ function renderExerciseList() {
 
 function saveAndStartRoutine() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
-    // NOTA: NO se borra la rutina aquí. Se guarda en memoria para el ejecutor.
     localStorage.setItem('pending_routine', JSON.stringify(currentRoutine));
     buildTimerQueue();
     showInterface('executor-section');
@@ -224,7 +222,7 @@ function saveAndStartRoutine() {
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y AUDIO PRIORITARIO)
+// 4. EJECUTOR (CRONOMETRAJE Y AUDIO MINIMALISTA)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -240,7 +238,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
     } else if (type === 'eccentric') {
-        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana
+        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana limpia
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(250, now);
@@ -248,7 +246,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
         osc.start(now); osc.stop(now + 0.8);
     } else if (type === 'concentric') {
-        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana
+        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana limpia
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(900, now);
@@ -300,7 +298,8 @@ function buildTimerQueue() {
 
         for (let s = 1; s <= realSets; s++) {
             const isLeft = isUnilateral ? (s % 2 !== 0) : false;
-            const sideLabel = isUnilateral ? (isLeft ? "Lado Izquierdo" : "Lado Derecho") : "";
+            // Etiqueta ultra-corta para máxima concentración
+            const sideLabel = isUnilateral ? (isLeft ? "Izquierda" : "Derecha") : "";
 
             const phases = [];
             if (ex.tempo.ecc > 0) phases.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
@@ -317,7 +316,7 @@ function buildTimerQueue() {
 
             if (s < realSets) {
                 if (isUnilateral && isLeft) {
-                    queue.push({ phase: 'Transición', duration: 10, action: 'rest-trans', exerciseName: ex.name, setNumber: s, totalRealSets: realSets, nextSide: "Derecho" });
+                    queue.push({ phase: 'Transición', duration: 10, action: 'rest-trans', exerciseName: ex.name, setNumber: s, totalRealSets: realSets, nextSide: "Derecha" });
                 } else {
                     queue.push({ phase: 'Descanso', duration: ex.rest.set, action: 'rest', exerciseName: ex.name, setNumber: s, totalRealSets: realSets });
                 }
@@ -343,8 +342,13 @@ function loadNextPhase() {
         speak("Comienza la preparación", 1.1);
     } 
     else if (item.action === 'ecc' && item.isFirstPhaseOfSet) {
-        const sideText = item.sideLabel ? `, ${item.sideLabel}` : "";
-        speak(`Serie ${item.setNumber} de ${item.totalRealSets}, ${item.exerciseName}${sideText}. Exce`, 1.2);
+        if (item.isUnilateral) {
+            // CONFIGURACIÓN C: Solo indica el lado para máxima concentración
+            speak(item.sideLabel, 1.2);
+        } else {
+            // CONFIGURACIÓN A o B: Anuncio estándar de serie
+            speak(`Serie ${item.setNumber}. Exce`, 1.2);
+        }
         playSound('eccentric');
     } 
     else if (item.action === 'ecc') {
@@ -360,11 +364,11 @@ function loadNextPhase() {
         speak("Pausa arriba", 1.3); playSound('pause-top');
     }
     else if (item.action === 'rest-trans') {
-        speak(`Cambio a lado ${item.nextSide}`, 1.3); // Mensaje corto y rápido
+        speak(item.nextSide, 1.3); // Solo dice "Derecha" o "Izquierda" en la transición
     }
     else if (item.action === 'rest' || item.action === 'rest-exercise') {
         if (item.action === 'rest-exercise') {
-            speak(`Siguiente: ${item.nextExName}`, 1.2); // Mensaje corto y rápido
+            speak(`Siguiente: ${item.nextExName}`, 1.2);
             playSound('transition');
         } else {
             speak("Descanso", 1.2);
