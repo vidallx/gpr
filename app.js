@@ -19,7 +19,7 @@ let timeLeftInPhase = 0;
 let editIndex = -1;
 
 // ==========================================
-// 1. AUTENTICACIÓN
+// 1. AUTENTICACIÓN Y UTILIDADES UI
 // ==========================================
 async function login() {
     const email = document.getElementById('login-email').value;
@@ -49,12 +49,25 @@ function showMessage(msg) { document.getElementById('auth-message').innerText = 
 
 function initApp() {
     showInterface('programmer-section');
+    toggleQuantity(); // Asegurar estado inicial correcto
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
 }
 
+// Bloquea/desbloquea la cantidad según el equipamiento
+function toggleQuantity() {
+    const equip = document.getElementById('ex-equipment').value;
+    const qty = document.getElementById('ex-quantity');
+    if (equip === 'Sin equipo') {
+        qty.disabled = true;
+        qty.value = '2'; // Por defecto, no aplica unilateral
+    } else {
+        qty.disabled = false;
+    }
+}
+
 // ==========================================
-// 2. ASISTENTE DE VOZ (OPTIMIZADO)
+// 2. ASISTENTE DE VOZ
 // ==========================================
 const phrases = [
     "Bienvenido {name}, listo para sudar", "Vamos a romperla hoy, {name}", "El dolor es temporal, la gloria es eterna, {name}",
@@ -74,7 +87,7 @@ function speakRandomGreeting(name) {
 
 function speak(text, rate = 1.1) {
     if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Limpia la cola para evitar solapamiento
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'es-ES';
         utterance.rate = rate;
@@ -137,6 +150,7 @@ function clearFormInputs() {
     document.getElementById('tempo-pt').value = '';
     document.getElementById('rest-set').value = '';
     document.getElementById('rest-ex').value = '';
+    toggleQuantity(); // Restablecer estado bloqueado
 }
 
 function editExercise(index) {
@@ -154,6 +168,8 @@ function editExercise(index) {
     document.getElementById('tempo-pt').value = ex.tempo.pt;
     document.getElementById('rest-set').value = ex.rest.set;
     document.getElementById('rest-ex').value = ex.rest.ex;
+    
+    toggleQuantity(); // Actualizar estado del selector
     document.querySelector('button[onclick="addExercise()"]').innerText = 'Guardar Cambios';
     window.scrollTo(0, 0);
 }
@@ -166,22 +182,34 @@ function deleteExercise(index) {
     renderExerciseList();
 }
 
+// CÁLCULO DE TIEMPO CON LÓGICA DE ALTERNANCIA POR REPETICIÓN
 function calculateTotalTime() {
-    let totalSeconds = 40; 
+    let totalSeconds = 40; // Preparación inicial
+    
     currentRoutine.exercises.forEach(ex => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
-        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
         const repCycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
         
-        for (let s = 1; s <= realSets; s++) {
-            totalSeconds += (repCycle * ex.reps);
-            if (s < realSets) {
-                if (isUnilateral && (s % 2 !== 0)) totalSeconds += 10; 
-                else totalSeconds += ex.rest.set;
+        for (let s = 1; s <= ex.sets; s++) {
+            for (let r = 1; r <= ex.reps; r++) {
+                // 1. Tiempo del lado izquierdo (o único si no es unilateral)
+                totalSeconds += repCycle;
+                
+                // 2. Si es unilateral, agregar transición de 10s y tiempo del lado derecho
+                if (isUnilateral) {
+                    totalSeconds += 10; // Transición
+                    totalSeconds += repCycle; // Lado derecho
+                }
+            }
+            // 3. Descanso completo al finalizar todas las repeticiones de la serie
+            if (s < ex.sets) {
+                totalSeconds += ex.rest.set;
             }
         }
+        // 4. Descanso entre ejercicios
         totalSeconds += ex.rest.ex;
     });
+    
     currentRoutine.totalTime = totalSeconds;
     document.getElementById('total-time-display').innerText = formatTime(totalSeconds);
 }
@@ -197,8 +225,7 @@ function renderExerciseList() {
     const list = document.getElementById('exercise-list');
     list.innerHTML = currentRoutine.exercises.map((ex, i) => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
-        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
-        const note = isUnilateral ? ` (Se realizarán ${realSets} series alternadas)` : '';
+        const note = isUnilateral ? ` (Alternado por repetición: Izq/Der)` : '';
         return `
         <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #ddd;">
             <div>
@@ -222,7 +249,7 @@ function saveAndStartRoutine() {
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y AUDIO MINIMALISTA)
+// 4. EJECUTOR (CRONOMETRAJE Y COLA DE ALTERNANCIA)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -238,7 +265,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
     } else if (type === 'eccentric') {
-        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana limpia
+        window.speechSynthesis.cancel(); // Prioridad al sonido del tempo
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(250, now);
@@ -246,7 +273,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
         osc.start(now); osc.stop(now + 0.8);
     } else if (type === 'concentric') {
-        window.speechSynthesis.cancel(); // PRIORIDAD: Silenciar voz para que suene la campana limpia
+        window.speechSynthesis.cancel(); // Prioridad al sonido del tempo
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(900, now);
@@ -287,46 +314,106 @@ function playTripleBeep(time) {
     }
 }
 
+// GENERACIÓN DE COLA CON ALTERNANCIA POR REPETICIÓN
 function buildTimerQueue() {
     queue = [];
     queue.push({ phase: 'Preparación', duration: 40, action: 'prep' });
 
     currentRoutine.exercises.forEach((ex, exIndex) => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
-        const realSets = isUnilateral ? ex.sets * 2 : ex.sets;
         const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
 
-        for (let s = 1; s <= realSets; s++) {
-            const isLeft = isUnilateral ? (s % 2 !== 0) : false;
-            // Etiqueta ultra-corta para máxima concentración
-            const sideLabel = isUnilateral ? (isLeft ? "Izquierda" : "Derecha") : "";
+        // BUCLE DE SERIES
+        for (let s = 1; s <= ex.sets; s++) {
+            
+            // BUCLE DE REPETICIONES (Aquí ocurre la alternancia)
+            for (let r = 1; r <= ex.reps; r++) {
+                
+                // --- 1. FASES DEL LADO IZQUIERDO (O ÚNICO) ---
+                const phasesLeft = [];
+                if (ex.tempo.ecc > 0) phasesLeft.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
+                if (ex.tempo.pb > 0) phasesLeft.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
+                if (ex.tempo.con > 0) phasesLeft.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
+                if (ex.tempo.pt > 0) phasesLeft.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
 
-            const phases = [];
-            if (ex.tempo.ecc > 0) phases.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
-            if (ex.tempo.pb > 0) phases.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
-            if (ex.tempo.con > 0) phases.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
-            if (ex.tempo.pt > 0) phases.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
-
-            phases.forEach((p, idx) => {
-                queue.push({
-                    ...p, exerciseName: ex.name, setNumber: s, totalRealSets: realSets,
-                    sideLabel: sideLabel, isFirstPhaseOfSet: (idx === 0), isUnilateral: isUnilateral
+                phasesLeft.forEach((p, idx) => {
+                    queue.push({
+                        ...p,
+                        exerciseName: ex.name,
+                        setNumber: s,
+                        repNumber: r,
+                        totalReps: ex.reps,
+                        totalSets: ex.sets,
+                        sideLabel: isUnilateral ? "Izquierda" : "",
+                        isFirstPhaseOfRep: (idx === 0),
+                        isUnilateral: isUnilateral
+                    });
                 });
-            });
 
-            if (s < realSets) {
-                if (isUnilateral && isLeft) {
-                    queue.push({ phase: 'Transición', duration: 10, action: 'rest-trans', exerciseName: ex.name, setNumber: s, totalRealSets: realSets, nextSide: "Derecha" });
-                } else {
-                    queue.push({ phase: 'Descanso', duration: ex.rest.set, action: 'rest', exerciseName: ex.name, setNumber: s, totalRealSets: realSets });
+                // --- 2. TRANSICIÓN (Solo si es unilateral) ---
+                if (isUnilateral) {
+                    queue.push({
+                        phase: 'Transición',
+                        duration: 10,
+                        action: 'rest-trans',
+                        exerciseName: ex.name,
+                        setNumber: s,
+                        repNumber: r,
+                        totalReps: ex.reps,
+                        totalSets: ex.sets,
+                        nextSide: "Derecha"
+                    });
                 }
-            } else {
-                if (exIndex < currentRoutine.exercises.length - 1) {
-                    queue.push({ phase: 'Descanso entre ejercicios', duration: ex.rest.ex, action: 'rest-exercise', exerciseName: ex.name, nextExName: nextExName });
+
+                // --- 3. FASES DEL LADO DERECHO (Solo si es unilateral) ---
+                if (isUnilateral) {
+                    const phasesRight = [];
+                    if (ex.tempo.ecc > 0) phasesRight.push({ phase: 'Excéntrico', duration: ex.tempo.ecc, action: 'ecc' });
+                    if (ex.tempo.pb > 0) phasesRight.push({ phase: 'Pausa Abajo', duration: ex.tempo.pb, action: 'pause-bottom' });
+                    if (ex.tempo.con > 0) phasesRight.push({ phase: 'Concéntrico', duration: ex.tempo.con, action: 'con' });
+                    if (ex.tempo.pt > 0) phasesRight.push({ phase: 'Pausa Arriba', duration: ex.tempo.pt, action: 'pause-top' });
+
+                    phasesRight.forEach((p, idx) => {
+                        queue.push({
+                            ...p,
+                            exerciseName: ex.name,
+                            setNumber: s,
+                            repNumber: r,
+                            totalReps: ex.reps,
+                            totalSets: ex.sets,
+                            sideLabel: "Derecha",
+                            isFirstPhaseOfRep: (idx === 0),
+                            isUnilateral: true
+                        });
+                    });
                 }
+            } // Fin del bucle de repeticiones
+
+            // --- 4. DESCANSO COMPLETO DE SERIE ---
+            if (s < ex.sets) {
+                queue.push({
+                    phase: 'Descanso entre series',
+                    duration: ex.rest.set,
+                    action: 'rest',
+                    exerciseName: ex.name,
+                    setNumber: s,
+                    totalSets: ex.sets
+                });
             }
+        } // Fin del bucle de series
+
+        // --- 5. DESCANSO ENTRE EJERCICIOS ---
+        if (exIndex < currentRoutine.exercises.length - 1) {
+            queue.push({
+                phase: 'Descanso entre ejercicios',
+                duration: ex.rest.ex,
+                action: 'rest-exercise',
+                exerciseName: ex.name,
+                nextExName: nextExName
+            });
         }
     });
+
     queue.push({ phase: '¡Rutina Finalizada!', duration: 5, action: 'finish' });
     currentQueueIndex = 0;
     loadNextPhase();
@@ -341,12 +428,10 @@ function loadNextPhase() {
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     } 
-    else if (item.action === 'ecc' && item.isFirstPhaseOfSet) {
+    else if (item.action === 'ecc' && item.isFirstPhaseOfRep) {
         if (item.isUnilateral) {
-            // CONFIGURACIÓN C: Solo indica el lado para máxima concentración
-            speak(item.sideLabel, 1.2);
+            speak(item.sideLabel, 1.2); // Solo dice "Izquierda" o "Derecha"
         } else {
-            // CONFIGURACIÓN A o B: Anuncio estándar de serie
             speak(`Serie ${item.setNumber}. Exce`, 1.2);
         }
         playSound('eccentric');
@@ -364,7 +449,7 @@ function loadNextPhase() {
         speak("Pausa arriba", 1.3); playSound('pause-top');
     }
     else if (item.action === 'rest-trans') {
-        speak(item.nextSide, 1.3); // Solo dice "Derecha" o "Izquierda" en la transición
+        speak(item.nextSide, 1.3); // Dice "Derecha" para indicar el cambio
     }
     else if (item.action === 'rest' || item.action === 'rest-exercise') {
         if (item.action === 'rest-exercise') {
@@ -377,7 +462,7 @@ function loadNextPhase() {
     else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
         saveHistory();
-        clearRoutine(); // ÚNICO LUGAR DONDE SE BORRA LA RUTINA DEL PROGRAMADOR
+        clearRoutine();
         setTimeout(() => showInterface('history-section'), 3000);
         return;
     }
@@ -388,7 +473,7 @@ function updateTimerUI(item) {
     if (item.exerciseName) {
         title = `${item.exerciseName}`;
         if (item.sideLabel) title += ` (${item.sideLabel})`;
-        title += ` - Serie ${item.setNumber}/${item.totalRealSets}`;
+        title += ` - Serie ${item.setNumber}/${item.totalSets} | Rep ${item.repNumber}/${item.totalReps}`;
     }
     document.getElementById('current-phase-title').innerText = title;
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
@@ -434,11 +519,10 @@ function finishRoutine() {
     clearInterval(timerInterval);
     speak("Rutina finalizada manualmente", 1.1);
     saveHistory();
-    clearRoutine(); // ÚNICO LUGAR DONDE SE BORRA LA RUTINA DEL PROGRAMADOR
+    clearRoutine();
     showInterface('history-section');
 }
 
-// FUNCIÓN DE LIMPIEZA (Solo llamada al finalizar)
 function clearRoutine() {
     currentRoutine = { exercises: [], totalTime: 0 };
     editIndex = -1;
