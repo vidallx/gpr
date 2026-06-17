@@ -6,12 +6,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ==========================================
-// CONFIGURACIÓN SUPABASE
-// ==========================================
-const SUPABASE_URL = 'https://tu-proyecto.supabase.co'; 
-const SUPABASE_KEY = 'tu-clave-anon-aqui';              
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 
 // ==========================================
 // ESTADO GLOBAL
