@@ -256,7 +256,7 @@ function saveAndStartRoutine() {
 }
 
 // ==========================================
-// 4. EJECUTOR (CRONOMETRAJE Y AUDIO CORREGIDO)
+// 4. EJECUTOR (CRONOMETRAJE Y AUDIO)
 // ==========================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -272,7 +272,6 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
     } else if (type === 'eccentric') {
-        // SE ELIMINÓ window.speechSynthesis.cancel() DE AQUÍ PARA NO MATAR LA VOZ
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(250, now);
@@ -280,7 +279,6 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.5, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
         osc.start(now); osc.stop(now + 0.8);
     } else if (type === 'concentric') {
-        // SE ELIMINÓ window.speechSynthesis.cancel() DE AQUÍ PARA NO MATAR LA VOZ
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.type = 'sine'; osc.frequency.setValueAtTime(900, now);
@@ -387,7 +385,6 @@ function loadNextPhase() {
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     } 
-    // REGLAS DE VOZ PARA TEMPOS (Si duración >= 1 segundo)
     else if (item.action === 'ecc' && item.isFirstPhaseOfRep && item.duration >= 1) {
         speak("excen", 1.3);
         playSound('eccentric');
@@ -454,9 +451,9 @@ function tick() {
         if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString(), 1.2);
     }
 
-    // LÓGICA ESPECÍFICA PARA CONFIGURACIÓN C: Anunciar lado después del 1er segundo de transición
+    // LÓGICA ESPECÍFICA PARA CONFIGURACIÓN C: Anunciar lado después del 1er segundo de transición (cuando el contador muestra 7)
     if (currentItem.action === 'rest-trans' && timeLeftInPhase === 7) {
-        speak(currentItem.nextSide, 1.3); 
+        speak("Cambiar a " + currentItem.nextSide, 1.3); 
     }
 
     timeLeftInPhase--;
