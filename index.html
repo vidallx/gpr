@@ -1,51 +1,27 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gym Tracker Pro</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="manifest" href="manifest.json">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-        <header>
-          <img src="gim.png" alt="Gym Logo" class="logo">
-          <h1>Gym Tracker Pro</h1>
-          <!-- Aquí agregamos tu crédito con un estilo sutil y moderno -->
-          <h6 style="color: rgba(255, 255, 255, 0.7); margin-top: 5px; font-weight: normal; font-size: 14px; letter-spacing: 1px;">by Vidal</h6>
-        </header>
-
-    <main>
-        <!-- INTERFASE 1: INGRESO -->
-        <section id="login-section" class="interface active">
-            <div class="card">
-                <h2>Bienvenido</h2>
-                <!-- Nuevo campo para el nombre -->
-                <input type="text" id="user-name" placeholder="Tu nombre (ej: Carlos)">
-                
-                <input type="email" id="login-email" placeholder="Correo electrónico">
-                <input type="password" id="login-password" placeholder="Contraseña">
-                
-                <button onclick="login()">Iniciar Sesión</button>
-                <p class="divider">o</p>
-                <button class="secondary" onclick="register()">Registrar Nuevo Usuario</button>
-                
-                <p id="auth-message" class="message"></p>
-                
-                <p style="text-align: center; margin-top: 15px;">
-                    <a href="#" onclick="resetPassword()" style="color: #C23D55; font-size: 14px; text-decoration: none; font-weight: bold;">¿Olvidaste tu contraseña?</a>
-                </p>
-            </div>
-        </section>
-
         <!-- INTERFASE 2: PROGRAMADOR DE RUTINAS -->
         <section id="programmer-section" class="interface hidden">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h2 style="margin: 0;">Programar Rutina</h2>
-                    <!-- BOTÓN DE HISTORIAL AGREGADO AQUÍ -->
-                    <button onclick="showInterface('history-section'); loadHistory();" style="width: auto; padding: 8px 15px; font-size: 14px; background: #0C047D; color: white; border: none; border-radius: 8px;">📜 Historial</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="showScheduledRoutines()" style="width: auto; padding: 8px 12px; font-size: 13px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer;">📅 Mis Rutinas</button>
+                        <button onclick="showInterface('history-section'); loadHistory();" style="width: auto; padding: 8px 12px; font-size: 13px; background: #0C047D; color: white; border: none; border-radius: 8px; cursor: pointer;">📜 Historial</button>
+                    </div>
+                </div>
+
+                <!-- 🆕 NUEVO: Selector de día para la rutina -->
+                <div class="form-group" style="background: #f0f4f8; padding: 12px; border-radius: 10px; margin-bottom: 15px;">
+                    <label style="font-weight: bold; color: #0C047D;">📅 Programar para el día:</label>
+                    <select id="routine-day" style="margin-top: 8px;">
+                        <option value="Lunes">Lunes</option>
+                        <option value="Martes">Martes</option>
+                        <option value="Miércoles">Miércoles</option>
+                        <option value="Jueves">Jueves</option>
+                        <option value="Viernes">Viernes</option>
+                        <option value="Sábado">Sábado</option>
+                        <option value="Domingo">Domingo</option>
+                    </select>
+                    <p id="routine-day-info" style="font-size: 12px; color: #666; margin-top: 5px; margin-bottom: 0;"></p>
                 </div>
                 
                 <div class="form-group">
@@ -54,15 +30,6 @@
                         <option value="Tren Superior">Tren Superior</option>
                         <option value="Tren Inferior">Tren Inferior</option>
                         <option value="Full Body">Full Body</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Día de entrenamiento:</label>
-                    <select id="training-day">
-                        <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
-                        <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
-                        <option value="Viernes">Viernes</option><option value="Sábado">Sábado</option>
-                        <option value="Domingo">Domingo</option>
                     </select>
                 </div>
                 
@@ -74,10 +41,9 @@
                         <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
                     </div>
                     
-                                        <p class="sub-title">Equipamiento y Cantidad:</p>
+                    <p class="sub-title">Equipamiento y Cantidad:</p>
                     <div class="row">
-                        <!-- Se agregó onchange="toggleQuantity()" -->
-                        <select id="ex-equipment" style="flex: 2;" onchange="toggleQuantity()">
+                        <select id="ex-equipment" style="flex: 2;">
                             <option value="Sin equipo" selected>Sin equipo</option>
                             <option value="Mancuernas">Mancuernas</option>
                             <option value="Barras">Barras</option>
@@ -94,6 +60,7 @@
                             <option value="1">1 (Unilateral)</option>
                         </select>
                     </div>
+
                     <p class="sub-title">Tempo (segundos):</p>
                     <div class="row">
                         <input type="number" id="tempo-ecc" placeholder="Excéntrico" min="0">
@@ -114,52 +81,21 @@
                     <ul id="exercise-list"></ul>
                 </div>
 
-                <button class="primary-btn" onclick="saveAndStartRoutine()">Guardar e Iniciar Rutina</button>
+                <div class="row" style="margin-top: 10px;">
+                    <button class="primary-btn" onclick="saveAndStartRoutine()" style="flex: 1;">💾 Guardar e Iniciar</button>
+                    <button class="secondary" onclick="saveRoutineOnly()" style="flex: 1; background: #28a745; color: white;">📥 Solo Guardar</button>
+                </div>
             </div>
         </section>
 
-        <!-- INTERFASE 3: EJECUTOR (CRONOMETRAJE) -->
-        <section id="executor-section" class="interface hidden">
-            <div class="card minimalist">
-                <h2 id="current-phase-title">Preparación</h2>
-                <div class="progress-container">
-                    <svg class="progress-ring" width="200" height="200">
-                        <circle class="progress-ring__circle-bg" stroke="rgba(255,255,255,0.2)" stroke-width="10" fill="transparent" r="90" cx="100" cy="100"/>
-                        <circle class="progress-ring__circle" stroke="#ffffff" stroke-width="10" fill="transparent" r="90" cx="100" cy="100"/>
-                    </svg>
-                    <div class="timer-display">
-                        <span id="timer-seconds">00</span>
-                        <span class="phase-label" id="tempo-label">s</span>
-                    </div>
-                </div>
-                <div class="controls">
-                    <button onclick="toggleTimer()" id="btn-start-pause">Iniciar</button>
-                    <button class="danger" onclick="finishRoutine()">Finalizar</button>
-                    <button class="secondary" onclick="showInterface('programmer-section')">Volver</button>
-                </div>
-                <button class="history-btn" onclick="showInterface('history-section'); loadHistory();">Historial</button>
-            </div>
-        </section>
-
-         <!-- INTERFASE 4: HISTORIAL -->
-        <section id="history-section" class="interface hidden">
+        <!-- 🆕 NUEVA INTERFASE: PANEL DE RUTINAS PROGRAMADAS -->
+        <section id="scheduled-routines-section" class="interface hidden">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h2 style="margin: 0;">Historial de Rutinas</h2>
-                    <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px;">⬅ Volver</button>
+                    <h2 style="margin: 0;">📅 Mis Rutinas</h2>
+                    <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer;">⬅ Volver</button>
                 </div>
-                <div id="history-list" class="history-container">
-                    <!-- Se llena dinámicamente -->
-                </div>
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Tus rutinas programadas para cada día de la semana:</p>
+                <div id="scheduled-routines-list"></div>
             </div>
         </section>
-    </main>
-
-    <script src="app.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registrado'));
-        }
-    </script>
-</body>
-</html>
