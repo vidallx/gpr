@@ -18,6 +18,7 @@ let queue = [];
 let currentQueueIndex = 0;
 let timeLeftInPhase = 0;
 let editIndex = -1;
+let currentScheduledDay = 'Lunes'; // 🆕 Día actual de la rutina en edición
 
 // ==========================================
 // FUNCIÓN DE BLOQUEO INTELIGENTE
@@ -41,7 +42,77 @@ document.addEventListener('DOMContentLoaded', () => {
         equipSelect.addEventListener('change', toggleQuantity);
         toggleQuantity();
     }
+    
+    // 🆕 NUEVO: Listener para el selector de día
+    const daySelect = document.getElementById('routine-day');
+    if (daySelect) {
+        daySelect.addEventListener('change', handleDayChange);
+        setDefaultDay();
+    }
 });
+
+// 🆕 NUEVO: Establecer el día actual automáticamente
+function setDefaultDay() {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const today = days[new Date().getDay()];
+    const daySelect = document.getElementById('routine-day');
+    if (daySelect) {
+        daySelect.value = today;
+        currentScheduledDay = today;
+        loadRoutineForDay(today);
+    }
+}
+
+// 🆕 NUEVO: Manejar cambio de día en el selector
+function handleDayChange() {
+    const selectedDay = document.getElementById('routine-day').value;
+    
+    // Si hay cambios sin guardar en la rutina actual, preguntar
+    if (currentRoutine.exercises.length > 0) {
+        if (!confirm(`Tienes una rutina en edición. ¿Deseas cargar la rutina del ${selectedDay}? (Los cambios no guardados se perderán)`)) {
+            document.getElementById('routine-day').value = currentScheduledDay;
+            return;
+        }
+    }
+    
+    currentScheduledDay = selectedDay;
+    loadRoutineForDay(selectedDay);
+}
+
+// 🆕 NUEVO: Cargar rutina guardada para un día específico
+function loadRoutineForDay(day) {
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    const routine = allRoutines[day];
+    
+    if (routine) {
+        currentRoutine = JSON.parse(JSON.stringify(routine));
+        renderExerciseList();
+        document.getElementById('total-time-display').innerText = formatTime(currentRoutine.totalTime);
+        
+        // Restaurar valores del formulario principal
+        document.getElementById('body-part').value = routine.bodyPart || 'Full Body';
+        
+        updateDayInfo(day, true);
+    } else {
+        currentRoutine = { exercises: [], totalTime: 0 };
+        clearFormInputs();
+        updateDayInfo(day, false);
+    }
+}
+
+// 🆕 NUEVO: Actualizar información del día seleccionado
+function updateDayInfo(day, hasRoutine) {
+    const info = document.getElementById('routine-day-info');
+    if (!info) return;
+    
+    if (hasRoutine) {
+        info.innerHTML = `✅ Ya tienes una rutina programada para <strong>${day}</strong> con ${currentRoutine.exercises.length} ejercicio(s).`;
+        info.style.color = '#28a745';
+    } else {
+        info.innerHTML = `ℹ️ No hay rutina programada para <strong>${day}</strong>. Crea una nueva.`;
+        info.style.color = '#666';
+    }
+}
 
 // ==========================================
 // 1. AUTENTICACIÓN
@@ -272,12 +343,165 @@ function renderExerciseList() {
     }).join('');
 }
 
+// 🆕 NUEVO: Guardar rutina en localStorage asociada al día
+function saveRoutineToStorage() {
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    
+    // Guardar la rutina completa con metadatos
+    allRoutines[currentScheduledDay] = {
+        ...JSON.parse(JSON.stringify(currentRoutine)),
+        bodyPart: document.getElementById('body-part').value,
+        savedAt: new Date().toISOString()
+    };
+    
+    localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines));
+}
+
+// 🆕 NUEVO: Guardar rutina sin iniciarla
+function saveRoutineOnly() {
+    if (currentRoutine.exercises.length === 0) {
+        return alert('Añade al menos un ejercicio antes de guardar');
+    }
+    
+    saveRoutineToStorage();
+    updateDayInfo(currentScheduledDay, true);
+    alert(`✅ Rutina guardada para el ${currentScheduledDay}. Podrás iniciarla cuando quieras.`);
+}
+
 function saveAndStartRoutine() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
+    
+    // 🆕 NUEVO: Guardar en localStorage antes de iniciar
+    saveRoutineToStorage();
+    
     localStorage.setItem('pending_routine', JSON.stringify(currentRoutine));
     buildTimerQueue();
     showInterface('executor-section');
     speak("Dispondrás de 40 segundos para prepararte", 1.1);
+}
+
+// 🆕 NUEVO: Mostrar panel de rutinas programadas
+function showScheduledRoutines() {
+    showInterface('scheduled-routines-section');
+    renderScheduledRoutines();
+}
+
+// 🆕 NUEVO: Renderizar lista de rutinas programadas
+function renderScheduledRoutines() {
+    const container = document.getElementById('scheduled-routines-list');
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    
+    let html = '';
+    
+    days.forEach(day => {
+        const routine = allRoutines[day];
+        const isToday = day === getCurrentDayName();
+        const todayBadge = isToday ? ' <span style="background: #C23D55; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px;">HOY</span>' : '';
+        
+        if (routine) {
+            const exercisesList = routine.exercises.map(e => e.name).join(', ');
+            const unilateralCount = routine.exercises.filter(e => e.equipment !== 'Sin equipo' && e.quantity === 1).length;
+            
+            html += `
+                <div style="background: ${isToday ? '#e8f5e9' : '#f8f9fa'}; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid ${isToday ? '#28a745' : '#0C047D'};">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h3 style="margin: 0; color: #0C047D;">${day}${todayBadge}</h3>
+                        <div style="display: flex; gap: 5px;">
+                            <button onclick="loadAndStartRoutine('${day}')" style="padding: 5px 10px; font-size: 12px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer;">▶ Iniciar</button>
+                            <button onclick="editScheduledRoutine('${day}')" style="padding: 5px 10px; font-size: 12px; background: #ffc107; color: #000; border: none; border-radius: 5px; cursor: pointer;">✏️</button>
+                            <button onclick="deleteScheduledRoutine('${day}')" style="padding: 5px 10px; font-size: 12px; background: #ff4444; color: white; border: none; border-radius: 5px; cursor: pointer;">🗑️</button>
+                        </div>
+                    </div>
+                    <p style="margin: 5px 0; font-size: 13px;"><strong>${routine.bodyPart || 'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #666;">${routine.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p>
+                    <p style="margin: 5px 0; font-size: 12px; color: #888;"><small>${exercisesList}</small></p>
+                </div>
+            `;
+        } else {
+            html += `
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #ccc; opacity: 0.7;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; color: #999;">${day}${todayBadge}</h3>
+                        <button onclick="createRoutineForDay('${day}')" style="padding: 5px 12px; font-size: 12px; background: #0C047D; color: white; border: none; border-radius: 5px; cursor: pointer;">+ Crear</button>
+                    </div>
+                    <p style="margin: 5px 0; font-size: 12px; color: #999;">Sin rutina programada</p>
+                </div>
+            `;
+        }
+    });
+    
+    container.innerHTML = html || '<p style="text-align: center; color: #999;">No hay rutinas programadas.</p>';
+}
+
+// 🆕 NUEVO: Obtener nombre del día actual
+function getCurrentDayName() {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return days[new Date().getDay()];
+}
+
+// 🆕 NUEVO: Cargar rutina de un día específico e iniciarla
+function loadAndStartRoutine(day) {
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    const routine = allRoutines[day];
+    
+    if (!routine) return alert('No hay rutina para este día');
+    
+    currentRoutine = JSON.parse(JSON.stringify(routine));
+    currentScheduledDay = day;
+    document.getElementById('routine-day').value = day;
+    document.getElementById('body-part').value = routine.bodyPart || 'Full Body';
+    
+    saveAndStartRoutine();
+}
+
+// 🆕 NUEVO: Editar rutina de un día específico
+function editScheduledRoutine(day) {
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    const routine = allRoutines[day];
+    
+    if (!routine) return;
+    
+    currentRoutine = JSON.parse(JSON.stringify(routine));
+    currentScheduledDay = day;
+    document.getElementById('routine-day').value = day;
+    document.getElementById('body-part').value = routine.bodyPart || 'Full Body';
+    
+    renderExerciseList();
+    document.getElementById('total-time-display').innerText = formatTime(currentRoutine.totalTime);
+    updateDayInfo(day, true);
+    
+    showInterface('programmer-section');
+}
+
+// 🆕 NUEVO: Crear rutina para un día específico
+function createRoutineForDay(day) {
+    currentRoutine = { exercises: [], totalTime: 0 };
+    currentScheduledDay = day;
+    document.getElementById('routine-day').value = day;
+    clearFormInputs();
+    updateDayInfo(day, false);
+    showInterface('programmer-section');
+}
+
+// 🆕 NUEVO: Eliminar rutina de un día específico
+function deleteScheduledRoutine(day) {
+    if (!confirm(`¿Eliminar la rutina del ${day}?`)) return;
+    
+    const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+    delete allRoutines[day];
+    localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines));
+    
+    // Si era el día actual, limpiar la rutina en memoria
+    if (day === currentScheduledDay) {
+        currentRoutine = { exercises: [], totalTime: 0 };
+        clearFormInputs();
+        document.getElementById('total-time-display').innerText = '00:00';
+        document.getElementById('exercise-list').innerHTML = '';
+        updateDayInfo(day, false);
+    }
+    
+    renderScheduledRoutines();
 }
 
 // ==========================================
@@ -489,37 +713,28 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // ==========================================
-    // ANUNCIOS DE VOZ AL INICIO DE CADA FASE
-    // ==========================================
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
-    } 
-    else if (item.action === 'ecc' && item.isFirstPhaseOfRep && item.duration >= 1) {
+    } else if (item.action === 'ecc' && item.isFirstPhaseOfRep && item.duration >= 1) {
         if (item.isUnilateral) {
             speak(item.sideLabel + ", excen", 1.3);
         } else {
             speak("excen", 1.3);
         }
         playSound('eccentric');
-    } 
-    else if (item.action === 'ecc' && item.duration >= 1) {
+    } else if (item.action === 'ecc' && item.duration >= 1) {
         speak("excen", 1.3);
         playSound('eccentric');
-    } 
-    else if (item.action === 'pause-bottom' && item.duration >= 1) {
+    } else if (item.action === 'pause-bottom' && item.duration >= 1) {
         speak("pausa", 1.3);
         playSound('pause-bottom');
-    } 
-    else if (item.action === 'con' && item.duration >= 1) {
+    } else if (item.action === 'con' && item.duration >= 1) {
         speak("concex", 1.3);
         playSound('concentric');
-    } 
-    else if (item.action === 'pause-top' && item.duration >= 1) {
+    } else if (item.action === 'pause-top' && item.duration >= 1) {
         speak("pausa", 1.3);
         playSound('pause-top');
-    } 
-    else if (item.action === 'rest' || item.action === 'rest-exercise') {
+    } else if (item.action === 'rest' || item.action === 'rest-exercise') {
         if (item.action === 'rest-exercise') {
             if (item.isLastTwoExercises) {
                 const motivation = getRandomMotivationPhrase();
@@ -531,8 +746,7 @@ function loadNextPhase() {
         } else {
             speak("Descanso", 1.2);
         }
-    } 
-    else if (item.action === 'finish') {
+    } else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
         saveHistory();
         clearRoutine();
@@ -563,19 +777,10 @@ function updateTimerUI(item) {
     circle.style.strokeDashoffset = offset;
 }
 
-// ==========================================
-// 🔧 FUNCIÓN TICK CORREGIDA
-// "Asume tu posición" SOLO en descansos, NUNCA en tempos
-// ==========================================
 function tick() {
     if (isPaused) return;
     const currentItem = queue[currentQueueIndex];
 
-    // ==========================================
-    // CLASIFICACIÓN EXPLÍCITA DE FASES
-    // ==========================================
-    
-    // Fases de TEMPO (movimiento): NO deben decir "Asume tu posición"
     const isTempoPhase = (
         currentItem.action === 'ecc' ||
         currentItem.action === 'pause-bottom' ||
@@ -583,7 +788,6 @@ function tick() {
         currentItem.action === 'pause-top'
     );
 
-    // Fases de DESCANSO (pausa): SÍ deben decir "Asume tu posición"
     const isRestPhase = (
         currentItem.action === 'prep' ||
         currentItem.action === 'rest' ||
@@ -591,55 +795,34 @@ function tick() {
         currentItem.action === 'rest-exercise'
     );
 
-    // ==========================================
-    // LÓGICA PARA FASES DE DESCANSO
-    // (Preparación, entre series, transición, entre ejercicios)
-    // ==========================================
     if (isRestPhase) {
-        // Anuncio de 20 segundos
         if (timeLeftInPhase === 20) {
             speak("20 segundos", 1.2);
         }
         
-        // 🎯 "Asume tu posición" SOLO en descansos, NUNCA en tempos
         if (timeLeftInPhase === 8) {
             speak("Asume tu posición", 1.2);
         }
         
-        // Metrónomo en los últimos 5 segundos
         if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) {
             playSound('metronome');
         }
         
-        // Cuenta regresiva hablada en los últimos 3 segundos
         if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) {
             speak(timeLeftInPhase.toString(), 1.2);
         }
     }
 
-    // ==========================================
-    // LÓGICA PARA FASES DE TEMPO
-    // (Excéntrico, pausa abajo, concéntrico, pausa arriba)
-    // ==========================================
     if (isTempoPhase && currentItem.duration >= 3) {
-        // Metrónomo después del primer segundo (silencio inicial)
         if (timeLeftInPhase < currentItem.duration && timeLeftInPhase > 0) {
             playSound('metronome');
         }
     }
-    // ⚠️ NOTA IMPORTANTE: NO hay ningún "speak" aquí.
-    // Las fases de tempo NO dicen "Asume tu posición".
 
-    // ==========================================
-    // LÓGICA PARA TRANSICIÓN (Configuración C)
-    // ==========================================
     if (currentItem.action === 'rest-trans' && timeLeftInPhase === 7) {
         speak("Cambiar a " + currentItem.nextSide, 1.3);
     }
 
-    // ==========================================
-    // DECREMENTO Y AVANCE DE FASE
-    // ==========================================
     timeLeftInPhase--;
     updateTimerUI(currentItem);
 
@@ -670,13 +853,16 @@ function finishRoutine() {
     showInterface('history-section');
 }
 
+// 🆕 MODIFICADO: clearRoutine ahora NO borra del localStorage
 function clearRoutine() {
+    // Solo limpiar la rutina en memoria, NO del localStorage
     currentRoutine = { exercises: [], totalTime: 0 };
     editIndex = -1;
     clearFormInputs();
     document.getElementById('total-time-display').innerText = '00:00';
     document.getElementById('exercise-list').innerHTML = '';
     document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
+    updateDayInfo(currentScheduledDay, false);
 }
 
 // ==========================================
@@ -687,7 +873,7 @@ async function saveHistory() {
         user_id: currentUser ? currentUser.id : 'guest',
         date: new Date().toISOString().split('T')[0],
         body_part: document.getElementById('body-part').value,
-        day: document.getElementById('training-day').value,
+        day: currentScheduledDay,
         exercises: currentRoutine.exercises,
         total_time: currentRoutine.totalTime
     };
@@ -756,4 +942,3 @@ function syncToSupabase() {
 }
 
 window.addEventListener('online', syncToSupabase);
-
