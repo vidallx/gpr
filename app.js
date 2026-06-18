@@ -7,8 +7,6 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
-
-
 // ==========================================
 // ESTADO GLOBAL
 // ==========================================
@@ -96,7 +94,6 @@ const phrases = [
     "La consistencia es la clave, {name}", "Supera tus límites, {name}", "Vamos a esculpir esa obra de arte, {name}"
 ];
 
-// 🆕 NUEVO: 16 frases motivacionales para los últimos ejercicios
 const motivationPhrases = [
     "Adelante, tú puedes",
     "No olvides hidratarte",
@@ -121,7 +118,6 @@ function speakRandomGreeting(name) {
     speak(randomPhrase, 1.1);
 }
 
-// 🆕 NUEVO: Función para obtener una frase motivacional aleatoria
 function getRandomMotivationPhrase() {
     return motivationPhrases[Math.floor(Math.random() * motivationPhrases.length)];
 }
@@ -395,8 +391,6 @@ function buildTimerQueue() {
     currentRoutine.exercises.forEach((ex, exIndex) => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
         const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
-        
-        // 🆕 NUEVO: Detectar si estamos en los dos últimos ejercicios
         const isLastTwoExercises = (exIndex >= totalExercises - 2);
 
         for (let s = 1; s <= ex.sets; s++) {
@@ -479,7 +473,6 @@ function buildTimerQueue() {
                 action: 'rest-exercise',
                 exerciseName: ex.name,
                 nextExName: nextExName,
-                // 🆕 NUEVO: Marcamos si es uno de los dos últimos ejercicios
                 isLastTwoExercises: isLastTwoExercises
             });
         }
@@ -496,30 +489,38 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
+    // ==========================================
+    // ANUNCIOS DE VOZ AL INICIO DE CADA FASE
+    // ==========================================
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
-    } else if (item.action === 'ecc' && item.isFirstPhaseOfRep && item.duration >= 1) {
+    } 
+    else if (item.action === 'ecc' && item.isFirstPhaseOfRep && item.duration >= 1) {
         if (item.isUnilateral) {
             speak(item.sideLabel + ", excen", 1.3);
         } else {
             speak("excen", 1.3);
         }
         playSound('eccentric');
-    } else if (item.action === 'ecc' && item.duration >= 1) {
+    } 
+    else if (item.action === 'ecc' && item.duration >= 1) {
         speak("excen", 1.3);
         playSound('eccentric');
-    } else if (item.action === 'pause-bottom' && item.duration >= 1) {
+    } 
+    else if (item.action === 'pause-bottom' && item.duration >= 1) {
         speak("pausa", 1.3);
         playSound('pause-bottom');
-    } else if (item.action === 'con' && item.duration >= 1) {
+    } 
+    else if (item.action === 'con' && item.duration >= 1) {
         speak("concex", 1.3);
         playSound('concentric');
-    } else if (item.action === 'pause-top' && item.duration >= 1) {
+    } 
+    else if (item.action === 'pause-top' && item.duration >= 1) {
         speak("pausa", 1.3);
         playSound('pause-top');
-    } else if (item.action === 'rest' || item.action === 'rest-exercise') {
+    } 
+    else if (item.action === 'rest' || item.action === 'rest-exercise') {
         if (item.action === 'rest-exercise') {
-            // 🆕 NUEVO: Si es uno de los dos últimos ejercicios, añadir frase motivacional
             if (item.isLastTwoExercises) {
                 const motivation = getRandomMotivationPhrase();
                 speak(motivation + ". Siguiente: " + item.nextExName, 1.15);
@@ -530,7 +531,8 @@ function loadNextPhase() {
         } else {
             speak("Descanso", 1.2);
         }
-    } else if (item.action === 'finish') {
+    } 
+    else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
         saveHistory();
         clearRoutine();
@@ -561,10 +563,19 @@ function updateTimerUI(item) {
     circle.style.strokeDashoffset = offset;
 }
 
+// ==========================================
+// 🔧 FUNCIÓN TICK CORREGIDA
+// "Asume tu posición" SOLO en descansos, NUNCA en tempos
+// ==========================================
 function tick() {
     if (isPaused) return;
     const currentItem = queue[currentQueueIndex];
 
+    // ==========================================
+    // CLASIFICACIÓN EXPLÍCITA DE FASES
+    // ==========================================
+    
+    // Fases de TEMPO (movimiento): NO deben decir "Asume tu posición"
     const isTempoPhase = (
         currentItem.action === 'ecc' ||
         currentItem.action === 'pause-bottom' ||
@@ -572,6 +583,7 @@ function tick() {
         currentItem.action === 'pause-top'
     );
 
+    // Fases de DESCANSO (pausa): SÍ deben decir "Asume tu posición"
     const isRestPhase = (
         currentItem.action === 'prep' ||
         currentItem.action === 'rest' ||
@@ -579,33 +591,63 @@ function tick() {
         currentItem.action === 'rest-exercise'
     );
 
+    // ==========================================
+    // LÓGICA PARA FASES DE DESCANSO
+    // (Preparación, entre series, transición, entre ejercicios)
+    // ==========================================
     if (isRestPhase) {
-        if (timeLeftInPhase === 20) speak("20 segundos", 1.2);
+        // Anuncio de 20 segundos
+        if (timeLeftInPhase === 20) {
+            speak("20 segundos", 1.2);
+        }
         
-        // 🆕 NUEVO: Anunciar "asume tu posición" cuando falten 8 segundos
-        if (timeLeftInPhase === 8) speak("Asume tu posición", 1.2);
+        // 🎯 "Asume tu posición" SOLO en descansos, NUNCA en tempos
+        if (timeLeftInPhase === 8) {
+            speak("Asume tu posición", 1.2);
+        }
         
-        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) playSound('metronome');
-        if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString(), 1.2);
+        // Metrónomo en los últimos 5 segundos
+        if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) {
+            playSound('metronome');
+        }
+        
+        // Cuenta regresiva hablada en los últimos 3 segundos
+        if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) {
+            speak(timeLeftInPhase.toString(), 1.2);
+        }
     }
 
+    // ==========================================
+    // LÓGICA PARA FASES DE TEMPO
+    // (Excéntrico, pausa abajo, concéntrico, pausa arriba)
+    // ==========================================
     if (isTempoPhase && currentItem.duration >= 3) {
+        // Metrónomo después del primer segundo (silencio inicial)
         if (timeLeftInPhase < currentItem.duration && timeLeftInPhase > 0) {
             playSound('metronome');
         }
     }
+    // ⚠️ NOTA IMPORTANTE: NO hay ningún "speak" aquí.
+    // Las fases de tempo NO dicen "Asume tu posición".
 
+    // ==========================================
+    // LÓGICA PARA TRANSICIÓN (Configuración C)
+    // ==========================================
     if (currentItem.action === 'rest-trans' && timeLeftInPhase === 7) {
         speak("Cambiar a " + currentItem.nextSide, 1.3);
     }
 
+    // ==========================================
+    // DECREMENTO Y AVANCE DE FASE
+    // ==========================================
     timeLeftInPhase--;
     updateTimerUI(currentItem);
 
     if (timeLeftInPhase <= 0) {
         currentQueueIndex++;
-        if (currentQueueIndex < queue.length) loadNextPhase();
-        else {
+        if (currentQueueIndex < queue.length) {
+            loadNextPhase();
+        } else {
             clearInterval(timerInterval);
             finishRoutine();
         }
@@ -714,3 +756,4 @@ function syncToSupabase() {
 }
 
 window.addEventListener('online', syncToSupabase);
+
