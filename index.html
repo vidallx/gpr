@@ -9,7 +9,6 @@
     <meta name="theme-color" content="#C23D55">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -24,16 +23,29 @@
         <section id="login-section" class="interface active">
             <div class="card">
                 <h2>Bienvenido</h2>
-                <input type="text" id="user-name" placeholder="Tu nombre (ej: Carlos)">
                 <input type="email" id="login-email" placeholder="Correo electrónico">
                 <input type="password" id="login-password" placeholder="Contraseña">
                 <button onclick="login()">Iniciar Sesión</button>
                 <p class="divider">o</p>
-                <button class="secondary" onclick="register()">Registrar Nuevo Usuario</button>
+                <button class="secondary" onclick="showInterface('register-section')">Registrar Nuevo Usuario</button>
                 <p id="auth-message" class="message"></p>
                 <p style="text-align: center; margin-top: 15px;">
                     <a href="#" onclick="resetPassword()" style="color: #C23D55; font-size: 14px; text-decoration: none; font-weight: bold;">¿Olvidaste tu contraseña?</a>
                 </p>
+            </div>
+        </section>
+
+        <!-- 🆕 INTERFASE NUEVA: REGISTRO -->
+        <section id="register-section" class="interface hidden">
+            <div class="card">
+                <h2>Crear Cuenta</h2>
+                <input type="text" id="user-name" placeholder="Tu nombre (ej: Carlos)">
+                <input type="email" id="register-email" placeholder="Correo electrónico">
+                <input type="password" id="register-password" placeholder="Contraseña (mín. 6 caracteres)">
+                <input type="password" id="register-password-confirm" placeholder="Confirmar contraseña">
+                <button onclick="register()">Crear Cuenta</button>
+                <p id="register-message" class="message"></p>
+                <button class="secondary" onclick="showInterface('login-section')" style="margin-top: 10px;">⬅ Volver al Login</button>
             </div>
         </section>
 
@@ -48,7 +60,7 @@
                     </div>
                 </div>
 
-                <!-- Selector de día para la rutina -->
+                <!-- Selector de día -->
                 <div class="form-group" style="background: #f0f4f8; padding: 12px; border-radius: 10px; margin-bottom: 15px;">
                     <label style="font-weight: bold; color: #0C047D;">📅 Programar para el día:</label>
                     <select id="routine-day" style="margin-top: 8px;">
@@ -62,7 +74,7 @@
                     </select>
                     <p id="routine-day-info" style="font-size: 12px; color: #666; margin-top: 5px; margin-bottom: 0;"></p>
                 </div>
-                
+
                 <div class="form-group">
                     <label>Tipo de Entrenamiento:</label>
                     <select id="body-part">
@@ -71,7 +83,17 @@
                         <option value="Full Body">Full Body</option>
                     </select>
                 </div>
-                
+
+                <!-- 🆕 DESCANSO GLOBAL ENTRE EJERCICIOS (EN MINUTOS) -->
+                <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                    <label style="font-weight: bold; color: #856404;">⏱️ Descanso entre ejercicios (global para toda la rutina):</label>
+                    <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
+                        <input type="number" id="rest-ex-global" placeholder="0" min="0" style="flex: 1; margin: 0;">
+                        <span style="font-weight: bold; color: #856404; white-space: nowrap;">minutos</span>
+                    </div>
+                    <p style="font-size: 11px; color: #856404; margin-top: 5px; margin-bottom: 0;">Este descanso se aplicará al finalizar cada ejercicio (excepto el último).</p>
+                </div>
+
                 <div class="exercise-inputs">
                     <input type="text" id="ex-name" placeholder="Nombre del ejercicio (ej: Press de banca)">
                     <div class="row">
@@ -79,7 +101,7 @@
                         <input type="number" id="ex-reps" placeholder="Repeticiones" min="1">
                         <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
                     </div>
-                    
+
                     <p class="sub-title">Equipamiento y Cantidad:</p>
                     <div class="row">
                         <select id="ex-equipment" style="flex: 2;">
@@ -107,10 +129,9 @@
                         <input type="number" id="tempo-con" placeholder="Concéntrico" min="0">
                         <input type="number" id="tempo-pt" placeholder="Pausa Arriba" min="0">
                     </div>
-                    <p class="sub-title">Descansos (segundos):</p>
+                    <p class="sub-title">Descanso entre series (segundos):</p>
                     <div class="row">
                         <input type="number" id="rest-set" placeholder="Entre Series" min="0">
-                        <input type="number" id="rest-ex" placeholder="Entre Ejercicios" min="0">
                     </div>
                     <button class="secondary" onclick="addExercise()">Añadir Ejercicio</button>
                 </div>
@@ -127,7 +148,7 @@
             </div>
         </section>
 
-        <!-- INTERFASE NUEVA: PANEL DE RUTINAS PROGRAMADAS -->
+        <!-- INTERFASE: PANEL DE RUTINAS PROGRAMADAS -->
         <section id="scheduled-routines-section" class="interface hidden">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -158,20 +179,47 @@
                     <button class="danger" onclick="finishRoutine()">Finalizar</button>
                     <button class="secondary" onclick="showInterface('programmer-section')">Volver</button>
                 </div>
+                <!-- 🆕 NUEVO BOTÓN: Pausar y Salir -->
+                <button onclick="pauseAndExit()" style="background: #ffc107; color: #000; margin-top: 10px; font-weight: bold;">⏸️ Pausar y Salir</button>
                 <button class="history-btn" onclick="showInterface('history-section'); loadHistory();">Historial</button>
             </div>
         </section>
 
-        <!-- INTERFASE 4: HISTORIAL -->
+        <!-- INTERFASE 4: HISTORIAL (MEJORADO) -->
         <section id="history-section" class="interface hidden">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <h2 style="margin: 0;">Historial de Rutinas</h2>
+                    <h2 style="margin: 0;">📜 Historial</h2>
                     <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px;">⬅ Volver</button>
                 </div>
-                <div id="history-list" class="history-container">
-                    <!-- Se llena dinámicamente -->
+
+                <!-- 🆕 ESTADÍSTICAS -->
+                <div id="history-stats" class="stats-container"></div>
+
+                <!-- 🆕 FILTROS Y BÚSQUEDA -->
+                <div class="history-filters">
+                    <input type="text" id="history-search" placeholder="🔍 Buscar ejercicio..." oninput="applyHistoryFilters()">
+                    <div class="filter-row">
+                        <select id="filter-day" onchange="applyHistoryFilters()">
+                            <option value="">Todos los días</option>
+                            <option value="Lunes">Lunes</option>
+                            <option value="Martes">Martes</option>
+                            <option value="Miércoles">Miércoles</option>
+                            <option value="Jueves">Jueves</option>
+                            <option value="Viernes">Viernes</option>
+                            <option value="Sábado">Sábado</option>
+                            <option value="Domingo">Domingo</option>
+                        </select>
+                        <select id="filter-type" onchange="applyHistoryFilters()">
+                            <option value="">Todos los tipos</option>
+                            <option value="Tren Superior">Tren Superior</option>
+                            <option value="Tren Inferior">Tren Inferior</option>
+                            <option value="Full Body">Full Body</option>
+                        </select>
+                    </div>
                 </div>
+
+                <div id="history-list" class="history-container"></div>
             </div>
         </section>
     </main>
@@ -182,7 +230,6 @@
 
     <script src="app.js"></script>
     <script>
-        // Registro del Service Worker para modo offline
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registrado'));
         }
