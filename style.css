@@ -99,19 +99,114 @@ button:active { transform: scale(0.98); }
 .controls button { flex: 1; }
 .history-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; margin-top: 20px; }
 
-/* Historial */
-.history-item {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    border-left: 4px solid var(--primary);
-    position: relative;
+/* ==========================================
+   ESTADÍSTICAS DEL HISTORIAL
+   ========================================== */
+.stats-container {
+    margin-bottom: 20px;
 }
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, rgba(194, 61, 85, 0.1) 0%, rgba(12, 4, 125, 0.1) 100%);
+    padding: 12px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid rgba(12, 4, 125, 0.2);
+}
+
+.stat-icon {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #0C047D;
+    margin-bottom: 2px;
+}
+
+.stat-label {
+    font-size: 11px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ==========================================
+   FILTROS DEL HISTORIAL
+   ========================================== */
+.history-filters {
+    margin-bottom: 15px;
+}
+
+.history-filters input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.filter-row {
+    display: flex;
+    gap: 10px;
+}
+
+.filter-row select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 13px;
+    background: white;
+}
+
+/* ==========================================
+   HISTORIAL MEJORADO
+   ========================================== */
+.history-item {
+    background: #ffffff;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    border-left: 4px solid #C23D55;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: transform 0.2s;
+ }
+
+.history-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
 .delete-btn {
-    position: absolute; top: 10px; right: 10px;
-    background: #ff4444; color: white; border: none;
-    width: 30px; height: 30px; border-radius: 50%;
-    padding: 0; font-size: 18px; line-height: 30px;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #ff4444;
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    padding: 0;
+    font-size: 18px;
+    line-height: 28px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.delete-btn:hover {
+    background: #cc0000;
 }
 //
