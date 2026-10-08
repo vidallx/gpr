@@ -2,13 +2,14 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Gym Tracker Pro</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#C23D55">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- CDN de Supabase (Obligatorio para que funcione la base de datos) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -25,7 +26,7 @@
                 <h2>Bienvenido</h2>
                 <input type="email" id="login-email" placeholder="Correo electrónico">
                 <input type="password" id="login-password" placeholder="Contraseña">
-                <button onclick="login()">Iniciar Sesión</button>
+                <button class="primary-btn" onclick="login()">Iniciar Sesión</button>
                 <p class="divider">o</p>
                 <button class="secondary" onclick="showInterface('register-section')">Registrar Nuevo Usuario</button>
                 <p id="auth-message" class="message"></p>
@@ -43,7 +44,7 @@
                 <input type="email" id="register-email" placeholder="Correo electrónico">
                 <input type="password" id="register-password" placeholder="Contraseña (mín. 6 caracteres)">
                 <input type="password" id="register-password-confirm" placeholder="Confirmar contraseña">
-                <button onclick="register()">Crear Cuenta</button>
+                <button class="primary-btn" onclick="register()">Crear Cuenta</button>
                 <p id="register-message" class="message"></p>
                 <button class="secondary" onclick="showInterface('login-section')" style="margin-top: 10px;">⬅ Volver al Login</button>
             </div>
@@ -86,12 +87,12 @@
 
                 <!-- 🆕 DESCANSO GLOBAL ENTRE EJERCICIOS (EN MINUTOS) -->
                 <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
-                    <label style="font-weight: bold; color: #856404;">⏱️ Descanso entre ejercicios (global para toda la rutina):</label>
+                    <label style="font-weight: bold; color: #856404;">⏱️ Descanso entre ejercicios (global):</label>
                     <div style="display: flex; align-items: center; gap: 10px; margin-top: 8px;">
                         <input type="number" id="rest-ex-global" placeholder="0" min="0" style="flex: 1; margin: 0;">
                         <span style="font-weight: bold; color: #856404; white-space: nowrap;">minutos</span>
                     </div>
-                    <p style="font-size: 11px; color: #856404; margin-top: 5px; margin-bottom: 0;">Este descanso se aplicará al finalizar cada ejercicio (excepto el último).</p>
+                    <p style="font-size: 11px; color: #856404; margin-top: 5px; margin-bottom: 0;">Se aplicará al finalizar cada ejercicio (excepto el último).</p>
                 </div>
 
                 <div class="exercise-inputs">
@@ -99,7 +100,7 @@
                     <div class="row">
                         <input type="number" id="ex-sets" placeholder="Series" min="1">
                         <input type="number" id="ex-reps" placeholder="Repeticiones" min="1">
-                        <input type="number" id="ex-weight" placeholder="Peso (kg)" min="0">
+                        <input type="text" id="ex-weight" placeholder="Peso (ej: 20kg)">
                     </div>
 
                     <p class="sub-title">Equipamiento y Cantidad:</p>
@@ -155,8 +156,33 @@
                     <h2 style="margin: 0;">📅 Mis Rutinas</h2>
                     <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer;">⬅ Volver</button>
                 </div>
-                <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Tus rutinas programadas para cada día de la semana:</p>
+                
+                <!-- 🆕 IMPORTACIÓN CSV Y PLAN 12 SEMANAS -->
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: center; border: 1px solid #c8e6c9;">
+                    <h3 style="color: #28a745; margin: 0 0 10px 0; font-size: 16px;">Importar Plan de 12 Semanas</h3>
+                    <p style="font-size: 13px; color: #555; margin-bottom: 10px;">Sube tu archivo CSV para programar tus rutinas con fechas exactas automáticamente.</p>
+                    <input type="file" id="csv-import" accept=".csv" style="display:none;" onchange="handleCSVImport(event)">
+                    <button class="primary-btn" onclick="document.getElementById('csv-import').click()" style="background: #28a745; margin-bottom: 8px;">📥 Importar CSV</button>
+                    <br>
+                    <button class="secondary" onclick="downloadCSVTemplate()" style="font-size: 12px; padding: 8px;">📄 Descargar Plantilla CSV</button>
+                </div>
+
+                <button class="secondary" onclick="show12WeekPlan()" style="background: #0C047D; color: white; margin-bottom: 15px; font-weight: bold;">🗓️ Ver Plan de 12 Semanas con Fechas</button>
+
+                <p style="color: #666; font-size: 14px; margin-bottom: 15px; text-align: center;">Tus rutinas programadas para cada día de la semana:</p>
                 <div id="scheduled-routines-list"></div>
+            </div>
+        </section>
+
+        <!-- 🆕 INTERFASE: PLAN DE 12 SEMANAS -->
+        <section id="twelve-week-section" class="interface hidden">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">🗓️ Plan de 12 Semanas</h2>
+                    <button onclick="showScheduledRoutines()" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer;">⬅ Volver</button>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; text-align: center;">Calendario calculado automáticamente desde la fecha de hoy.</p>
+                <div id="twelve-week-content" style="max-height: 60vh; overflow-y: auto;"></div>
             </div>
         </section>
 
@@ -175,9 +201,8 @@
                     </div>
                 </div>
                 <div class="controls">
-                    <button onclick="toggleTimer()" id="btn-start-pause">Iniciar</button>
+                    <button onclick="toggleTimer()" id="btn-start-pause" class="primary-btn">Iniciar</button>
                     <button class="danger" onclick="finishRoutine()">Finalizar</button>
-                    <button class="secondary" onclick="showInterface('programmer-section')">Volver</button>
                 </div>
                 <!-- 🆕 NUEVO BOTÓN: Pausar y Salir -->
                 <button onclick="pauseAndExit()" style="background: #ffc107; color: #000; margin-top: 10px; font-weight: bold;">⏸️ Pausar y Salir</button>
@@ -230,10 +255,12 @@
 
     <script src="app.js"></script>
     <script>
+        // Registro del Service Worker para funcionalidad PWA (Offline)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => console.log('SW Registrado'));
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registrado'))
+                .catch(err => console.log('Error SW:', err));
         }
     </script>
 </body>
 </html>
-
