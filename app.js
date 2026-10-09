@@ -648,7 +648,7 @@ function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
     
-    // 🆕 BLINDAJE: Si la duración es 0 o negativa, saltar sin emitir audio
+    // Blindaje: Si la duración es 0, saltar sin emitir audio
     if (item.duration <= 0) {
         currentQueueIndex++;
         if (currentQueueIndex < queue.length) loadNextPhase();
@@ -659,23 +659,63 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
     
-    // 🆕 REGLA DE INTELIGENCIA: Solo hablar si la fase dura 2 segundos o más
-    const shouldSpeak = item.duration >= 2;
-    
+    // 🆕 LÓGICA ASIMÉTRICA: Fases de movimiento vs Fases de pausa
+    const isShort = item.duration <= 1; // Detectar si es un tempo ultra-rápido
+
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     } 
-    // EXCÉNTRICO
+    // 🏋️ EXCÉNTRICO (Movimiento: Voz + Sonido)
     else if (item.action === 'ecc' && item.duration >= 1) {
-        playSound('eccentric'); // Sonido SIEMPRE
-        if (shouldSpeak) {
-            if (item.isUnilateral && item.isFirstPhaseOfRep) {
-                speak(item.sideLabel + ", excéntrico, inhala", 1.2);
-            } else {
-                speak("Excéntrico, inhala", 1.2);
-            }
+        playSound('eccentric');
+        if (isShort) speak("Baja", 1.5); // Palabra corta para 1s
+        else if (item.isUnilateral && item.isFirstPhaseOfRep) speak(item.sideLabel + ", excéntrico, inhala", 1.2);
+        else speak("Excéntrico, inhala", 1.2);
+    } 
+    // 🧘 PAUSA ABAJO (Isometría: SOLO BEEP, Cero Voz)
+    else if (item.action === 'pause-bottom' && item.duration >= 1) {
+        playSound('pause-bottom'); // Doble beep
+        // ⚠️ No se llama a speak() para mantener el foco y no cortar la siguiente fase
+    } 
+    // 🏋️ CONCÉNTRICO (Movimiento: Voz + Sonido)
+    else if (item.action === 'con' && item.duration >= 1) {
+        playSound('concentric');
+        if (isShort) speak("Empuja", 1.5); // Palabra corta para 1s
+        else speak("Concéntrico, exhala", 1.2);
+    } 
+    // ⚡ CONCÉNTRICO EXPLOSIVO (Movimiento: Voz + Sonido)
+    else if (item.action === 'con-explosive' && item.duration >= 1) {
+        playSound('con-explosive');
+        speak("¡Empuja!", 1.5);
+    } 
+    // 🧘 PAUSA ARRIBA (Isometría: SOLO BEEP, Cero Voz)
+    else if (item.action === 'pause-top' && item.duration >= 1) {
+        playSound('pause-top'); // Triple beep
+        // ⚠️ No se llama a speak()
+    } 
+    // 🔄 DESCANSO ENTRE EJERCICIOS
+    else if (item.action === 'rest-exercise') {
+        playSound('transition');
+        if (item.isLastTwoExercises) {
+            speak(getRandomMotivationPhrase() + ". Siguiente: " + item.nextExName, 1.15);
+        } else {
+            speak(`Siguiente: ${item.nextExName}`, 1.2);
         }
     } 
+    // 🛑 DESCANSO ENTRE SERIES
+    else if (item.action === 'rest') {
+        speak("Descanso", 1.2);
+    } 
+    // 🏁 FINALIZADO
+    else if (item.action === 'finish') {
+        speak("Felicidades, has completado tu rutina", 1.1);
+        saveHistory();
+        clearRoutine();
+        localStorage.removeItem('paused_routine');
+        setTimeout(() => showInterface('history-section'), 3000);
+        return;
+    }
+}
     // PAUSA ABAJO
     else if (item.action === 'pause-bottom' && item.duration >= 1) {
         playSound('pause-bottom'); // Sonido SIEMPRE
