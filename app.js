@@ -647,27 +647,77 @@ function buildTimerQueue() {
 function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
-    if (item.duration <= 0) { currentQueueIndex++; if (currentQueueIndex < queue.length) loadNextPhase(); else { clearInterval(timerInterval); finishRoutine(); } return; }
-    timeLeftInPhase = item.duration; updateTimerUI(item);
-
-    if (item.action === 'prep' && timeLeftInPhase === 40) speak("Comienza la preparación", 1.1);
-    else if (item.action === 'ecc' && item.isFirstPhaseOfRep) { speak(item.isUnilateral ? item.sideLabel+", excéntrico, inhala" : "Excéntrico, inhala", 1.2); playSound('eccentric'); }
-    else if (item.action === 'ecc') { speak("excén, inhala", 1.2); playSound('eccentric'); }
-    else if (item.action === 'pause-bottom') { speak("Pausa, aguanta", 1.2); playSound('pause-bottom'); }
-    else if (item.action === 'con') { speak("Concén, exhala", 1.2); playSound('concentric'); }
-    else if (item.action === 'con-explosive') { speak("¡Empuja y exhala!", 1.3); playSound('con-explosive'); }
-    else if (item.action === 'pause-top') { speak("Pausa arriba, respira", 1.2); playSound('pause-top'); }
+    
+    // 🆕 BLINDAJE: Si la duración es 0 o negativa, saltar sin emitir audio
+    if (item.duration <= 0) {
+        currentQueueIndex++;
+        if (currentQueueIndex < queue.length) loadNextPhase();
+        else { clearInterval(timerInterval); finishRoutine(); }
+        return;
+    }
+    
+    timeLeftInPhase = item.duration;
+    updateTimerUI(item);
+    
+    // 🆕 REGLA DE INTELIGENCIA: Solo hablar si la fase dura 2 segundos o más
+    const shouldSpeak = item.duration >= 2;
+    
+    if (item.action === 'prep' && timeLeftInPhase === 40) {
+        speak("Comienza la preparación", 1.1);
+    } 
+    // EXCÉNTRICO
+    else if (item.action === 'ecc' && item.duration >= 1) {
+        playSound('eccentric'); // Sonido SIEMPRE
+        if (shouldSpeak) {
+            if (item.isUnilateral && item.isFirstPhaseOfRep) {
+                speak(item.sideLabel + ", excéntrico, inhala", 1.2);
+            } else {
+                speak("Excéntrico, inhala", 1.2);
+            }
+        }
+    } 
+    // PAUSA ABAJO
+    else if (item.action === 'pause-bottom' && item.duration >= 1) {
+        playSound('pause-bottom'); // Sonido SIEMPRE
+        if (shouldSpeak) speak("Pausa abajo, aguanta", 1.2);
+    } 
+    // CONCÉNTRICO NORMAL
+    else if (item.action === 'con' && item.duration >= 1) {
+        playSound('concentric'); // Sonido SIEMPRE
+        if (shouldSpeak) speak("Concéntrico, exhala", 1.2);
+    } 
+    // CONCÉNTRICO EXPLOSIVO ("X")
+    else if (item.action === 'con-explosive' && item.duration >= 1) {
+        playSound('con-explosive'); // Sonido SIEMPRE (látigo)
+        if (shouldSpeak) speak("¡Empuja y exhala!", 1.3);
+    } 
+    // PAUSA ARRIBA
+    else if (item.action === 'pause-top' && item.duration >= 1) {
+        playSound('pause-top'); // Sonido SIEMPRE
+        if (shouldSpeak) speak("Pausa arriba, respira", 1.2);
+    } 
+    // DESCANSO ENTRE EJERCICIOS
     else if (item.action === 'rest-exercise') {
-        if (item.isLastTwoExercises) speak(getRandomMotivationPhrase()+". Siguiente: "+item.nextExName, 1.15);
-        else speak("Siguiente: "+item.nextExName, 1.2);
         playSound('transition');
-    } else if (item.action === 'rest') speak("Descanso", 1.2);
-    else if (item.action === 'rest-trans' && timeLeftInPhase === 8) speak("Cambiar a "+item.nextSide, 1.3);
+        if (item.isLastTwoExercises) {
+            const motivation = getRandomMotivationPhrase();
+            speak(motivation + ". Siguiente: " + item.nextExName, 1.15);
+        } else {
+            speak(`Siguiente: ${item.nextExName}`, 1.2);
+        }
+    } 
+    // DESCANSO ENTRE SERIES
+    else if (item.action === 'rest') {
+        speak("Descanso", 1.2);
+    } 
+    // FINALIZADO
     else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
-        saveHistory(); clearRoutine(); releaseWakeLock();
+        saveHistory();
+        clearRoutine();
         localStorage.removeItem('paused_routine');
-        setTimeout(() => showInterface('history-section'), 3000); return;
+        setTimeout(() => showInterface('history-section'), 3000);
+        return;
     }
 }
 
