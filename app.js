@@ -652,9 +652,9 @@ function loadNextPhase() {
 
     if (item.action === 'prep' && timeLeftInPhase === 40) speak("Comienza la preparación", 1.1);
     else if (item.action === 'ecc' && item.isFirstPhaseOfRep) { speak(item.isUnilateral ? item.sideLabel+", excéntrico, inhala" : "Excéntrico, inhala", 1.2); playSound('eccentric'); }
-    else if (item.action === 'ecc') { speak("excéntrico, inhala", 1.2); playSound('eccentric'); }
+    else if (item.action === 'ecc') { speak("excén, inhala", 1.2); playSound('eccentric'); }
     else if (item.action === 'pause-bottom') { speak("Pausa, aguanta", 1.2); playSound('pause-bottom'); }
-    else if (item.action === 'con') { speak("Concéntrico, exhala", 1.2); playSound('concentric'); }
+    else if (item.action === 'con') { speak("Concén, exhala", 1.2); playSound('concentric'); }
     else if (item.action === 'con-explosive') { speak("¡Empuja y exhala!", 1.3); playSound('con-explosive'); }
     else if (item.action === 'pause-top') { speak("Pausa arriba, respira", 1.2); playSound('pause-top'); }
     else if (item.action === 'rest-exercise') {
