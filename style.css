@@ -5,9 +5,7 @@
   --glass: rgba(255, 255, 255, 0.95);
   --text: #1a1a1a;
 }
-/* 🆕 CORRECCIÓN CRÍTICA: Faltaba el asterisco universal */
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
-
 body {
   background: var(--gradient);
   min-height: 100vh;
@@ -22,35 +20,12 @@ header { text-align: center; margin-bottom: 20px; color: white; }
 .interface { display: none; width: 100%; max-width: 500px; animation: fadeIn 0.4s ease; }
 .interface.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-.card {
-  background: var(--glass);
-  padding: 25px;
-  border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
+.card { background: var(--glass); padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
 h2 { margin-bottom: 20px; color: var(--secondary); text-align: center; }
-input, select {
-  width: 100%;
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  font-size: 16px;
-}
+input, select { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 16px; }
 .row { display: flex; gap: 10px; }
 .row input, .row select { flex: 1; }
-button {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 10px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: transform 0.1s, opacity 0.2s;
-  margin-bottom: 10px;
-}
+button { width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: transform 0.1s, opacity 0.2s; margin-bottom: 10px; }
 button:active { transform: scale(0.98); }
 .primary-btn { background: var(--secondary); color: white; }
 .secondary { background: #e0e0e0; color: var(--text); }
@@ -62,39 +37,38 @@ button:active { transform: scale(0.98); }
 .summary-box ul { list-style: none; margin-top: 10px; }
 .summary-box li { padding: 5px 0; border-bottom: 1px solid #ddd; }
 
-/* 🆕 ESTILOS PARA PRESETS DE TEMPO */
+/* PRESETS DE TEMPO */
 .tempo-presets { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
-.preset-btn { 
-  flex: 1; min-width: 70px; padding: 8px; font-size: 12px; font-weight: bold; 
-  background: #0C047D; color: white; border: none; border-radius: 8px; 
-  cursor: pointer; margin-bottom: 0; transition: background 0.2s;
-}
+.preset-btn { flex: 1; min-width: 70px; padding: 8px; font-size: 12px; font-weight: bold; background: #0C047D; color: white; border: none; border-radius: 8px; cursor: pointer; margin-bottom: 0; transition: background 0.2s; }
 .preset-btn:hover { background: #C23D55; }
 
 /* Ejecutor Minimalista */
 .minimalist { text-align: center; background: rgba(0,0,0,0.85); color: white; backdrop-filter: blur(10px); border-radius: 20px; }
 .minimalist h2 { color: white; }
 .progress-container { position: relative; width: 200px; height: 200px; margin: 20px auto; }
-/* 🆕 TRANSICIÓN SUAVE PARA EL CAMBIO DE COLOR DEL ANILLO */
-.progress-ring__circle { 
-  transition: stroke-dashoffset 0.1s linear, stroke 0.3s ease; 
-  transform: rotate(-90deg); 
-  transform-origin: 50% 50%; 
-}
+.progress-ring__circle { transition: stroke-dashoffset 0.1s linear, stroke 0.3s ease; transform: rotate(-90deg); transform-origin: 50% 50%; }
 .timer-display { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 48px; font-weight: bold; }
 .phase-label { font-size: 16px; display: block; color: #aaa; }
 .controls { display: flex; gap: 10px; margin-top: 20px; }
 .controls button { flex: 1; }
 .history-btn { background: rgba(255,255,255,0.2); color: white; border: 1px solid white; margin-top: 20px; }
 
-/* Estadísticas y Filtros */
+/* Estadísticas */
+.stats-container { margin-bottom: 20px; }
 .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
-.stat-card { background: rgba(255,255,255,0.5); padding: 12px; border-radius: 12px; text-align: center; }
+.stat-card { background: linear-gradient(135deg, rgba(194,61,85,0.1) 0%, rgba(12,4,125,0.1) 100%); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid rgba(12,4,125,0.2); }
 .stat-icon { font-size: 24px; margin-bottom: 5px; }
-.stat-value { font-size: 20px; font-weight: bold; color: #0C047D; }
-.stat-label { font-size: 11px; color: #666; text-transform: uppercase; }
+.stat-value { font-size: 20px; font-weight: bold; color: #0C047D; margin-bottom: 2px; }
+.stat-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Filtros */
 .history-filters { margin-bottom: 15px; }
+.history-filters input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; font-size: 14px; }
 .filter-row { display: flex; gap: 10px; }
-.filter-row select { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; }
-.history-item { background: #ffffff; padding: 15px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #C23D55; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
-.delete-btn { position: absolute; top: 10px; right: 10px; background: #ff4444; color: white; border: none; width: 28px; height: 28px; border-radius: 50%; padding: 0; font-size: 18px; line-height: 28px; cursor: pointer; }
+.filter-row select { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; background: white; }
+
+/* Historial */
+.history-item { background: #ffffff; padding: 15px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #C23D55; position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: transform 0.2s; }
+.history-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.delete-btn { position: absolute; top: 10px; right: 10px; background: #ff4444; color: white; border: none; width: 28px; height: 28px; border-radius: 50%; padding: 0; font-size: 18px; line-height: 28px; cursor: pointer; z-index: 10; }
+.delete-btn:hover { background: #cc0000; }
