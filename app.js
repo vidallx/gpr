@@ -716,50 +716,6 @@ function loadNextPhase() {
         return;
     }
 }
-    // PAUSA ABAJO
-    else if (item.action === 'pause-bottom' && item.duration >= 1) {
-        playSound('pause-bottom'); // Sonido SIEMPRE
-        if (shouldSpeak) speak("Pausa abajo, aguanta", 1.2);
-    } 
-    // CONCÉNTRICO NORMAL
-    else if (item.action === 'con' && item.duration >= 1) {
-        playSound('concentric'); // Sonido SIEMPRE
-        if (shouldSpeak) speak("Concéntrico, exhala", 1.2);
-    } 
-    // CONCÉNTRICO EXPLOSIVO ("X")
-    else if (item.action === 'con-explosive' && item.duration >= 1) {
-        playSound('con-explosive'); // Sonido SIEMPRE (látigo)
-        if (shouldSpeak) speak("¡Empuja y exhala!", 1.3);
-    } 
-    // PAUSA ARRIBA
-    else if (item.action === 'pause-top' && item.duration >= 1) {
-        playSound('pause-top'); // Sonido SIEMPRE
-        if (shouldSpeak) speak("Pausa arriba, respira", 1.2);
-    } 
-    // DESCANSO ENTRE EJERCICIOS
-    else if (item.action === 'rest-exercise') {
-        playSound('transition');
-        if (item.isLastTwoExercises) {
-            const motivation = getRandomMotivationPhrase();
-            speak(motivation + ". Siguiente: " + item.nextExName, 1.15);
-        } else {
-            speak(`Siguiente: ${item.nextExName}`, 1.2);
-        }
-    } 
-    // DESCANSO ENTRE SERIES
-    else if (item.action === 'rest') {
-        speak("Descanso", 1.2);
-    } 
-    // FINALIZADO
-    else if (item.action === 'finish') {
-        speak("Felicidades, has completado tu rutina", 1.1);
-        saveHistory();
-        clearRoutine();
-        localStorage.removeItem('paused_routine');
-        setTimeout(() => showInterface('history-section'), 3000);
-        return;
-    }
-}
 
 function updateTimerUI(item) {
     let title = item.phase;
