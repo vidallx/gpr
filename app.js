@@ -815,7 +815,178 @@ function clearRoutine() {
     document.querySelector('button[onclick="addExercise()"]').innerText = 'Añadir Ejercicio';
     updateDayInfo(currentScheduledDay, false);
 }
+// ==========================================
+// 🆕 SINCRONIZACIÓN EN LA NUBE Y CSV
+// ==========================================
+async function syncPlanToCloud() {
+    if (!currentUser || !navigator.onLine) return;
+    const plan12 = localStorage.getItem('12_week_plan') || '{}';
+    const scheduled = localStorage.getItem('scheduled_routines') || '{}';
+    
+    await supabaseClient.from('user_plans').upsert({
+        user_id: currentUser.id,
+        plan_12_weeks: JSON.parse(plan12),
+        scheduled_routines: JSON.parse(scheduled),
+        updated_at: new Date().toISOString()
+    });
+}
 
+async function loadPlanFromCloud() {
+    if (!currentUser || !navigator.onLine) return;
+    const { data, error } = await supabaseClient.from('user_plans')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .single();
+        
+    if (data && !error) {
+        // Solo sobrescribe si el localStorage está vacío o es muy antiguo
+        const localScheduled = localStorage.getItem('scheduled_routines');
+        if (!localScheduled || localScheduled === '{}') {
+            localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
+            localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
+            loadRoutineForDay(currentScheduledDay); // Recargar vista actual
+        }
+    }
+}
+
+function downloadCSVTemplate() {
+    const csv = "Semana,Dia,Ejercicio,Series,Reps,Peso,Equipo,Cantidad,Tempo_Ecc,Tempo_PB,Tempo_Con,Tempo_PT,Descanso_Serie,Grupo,Descanso_Global\n1,Lunes,Press Banca,4,8,60kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2\n1,Lunes,Remo,4,8,50kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2";
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.setAttribute("href", URL.createObjectURL(blob));
+    link.setAttribute("download", "plantilla_gym_12semanas.csv");
+    link.click();
+}
+
+function handleCSVImport(event) {
+    const file = event.target.files[0]; 
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const rows = e.target.result.split(/\r?\n/).filter(r => r.trim() !== '');
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+            const planData = {};
+            
+            for (let i = 1; i < rows.length; i++) {
+                const cols = rows[i].split(',').map(c => c.trim()); 
+                if (cols.length < 5) continue;
+                const rowObj = {}; 
+                headers.forEach((h, idx) => rowObj[h] = cols[idx] || '');
+                
+                const semana = rowObj.semana || '1'; 
+                const dia = rowObj.dia || 'Lunes';
+                if (!planData[semana]) planData[semana] = {};
+                if (!planData[semana][dia]) {
+                    planData[semana][dia] = { exercises: [], bodyPart: rowObj.grupo || 'Full Body', restGlobal: parseInt(rowObj.descanso_global) || 0 };
+                }
+                
+                let conVal = rowObj.tempo_con ? rowObj.tempo_con.trim().toUpperCase() : '0';
+                let isExp = (conVal === 'X');
+                
+                planData[semana][dia].exercises.push({
+                    name: rowObj.ejercicio, 
+                    sets: parseInt(rowObj.series) || 1, 
+                    reps: parseInt(rowObj.reps) || 1, 
+                    weight: rowObj.peso || '',
+                    equipment: rowObj.equipo || 'Sin equipo', 
+                    quantity: parseInt(rowObj.cantidad) || 2,
+                    tempo: { 
+                        ecc: parseInt(rowObj.tempo_ecc) || 0, 
+                        pb: parseInt(rowObj.tempo_pb) || 0, 
+                        con: isExp ? 1 : (parseInt(conVal) || 0), 
+                        pt: parseInt(rowObj.tempo_pt) || 0, 
+                        isExplosive: isExp 
+                    },
+                    rest: { set: parseInt(rowObj.descanso_serie) || 0 }
+                });
+            }
+            
+            localStorage.setItem('12_week_plan', JSON.stringify(planData));
+            
+            // Cargar Semana 1 en las rutinas activas inmediatamente
+            if (planData['1']) {
+                const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+                Object.keys(planData['1']).forEach(day => {
+                    const r = planData['1'][day]; 
+                    let totalSec = 40;
+                    r.exercises.forEach((ex, idx) => {
+                        const isUni = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
+                        const cycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
+                        for (let s = 1; s <= ex.sets; s++) {
+                            totalSec += isUni ? (cycle * ex.reps) * 2 + 8 : (cycle * ex.reps);
+                            if (s < ex.sets) totalSec += ex.rest.set;
+                        }
+                        if (idx < r.exercises.length - 1) totalSec += r.restGlobal * 60;
+                    });
+                    currentRoutines[day] = { ...r, totalTime: totalSec, restBetweenExercises: r.restGlobal * 60 };
+                });
+                localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
+            }
+            
+            // 🚀 AQUÍ ESTÁ LA CLAVE: Sincronizar con la nube inmediatamente
+            await syncPlanToCloud();
+            
+            alert('✅ Plan importado y sincronizado con la nube. Ya puedes abrir la app en tu móvil.');
+            showScheduledRoutines();
+        } catch (err) { 
+            alert('❌ Error al leer el CSV. Asegúrate de usar la plantilla descargada.'); 
+            console.error(err); 
+        }
+    };
+    reader.readAsText(file);
+}
+
+function show12WeekPlan() {
+    showInterface('twelve-week-section');
+    const planData = JSON.parse(localStorage.getItem('12_week_plan') || '{}');
+    const container = document.getElementById('twelve-week-content');
+    if (Object.keys(planData).length === 0) { 
+        container.innerHTML = '<p style="text-align:center;color:#999;">No hay plan importado.</p>'; 
+        return; 
+    }
+    
+    const startDate = new Date(); startDate.setHours(0,0,0,0);
+    const daysMap = { 'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sábado':6,'Domingo':0 };
+    let html = '';
+    
+    Object.keys(planData).sort((a,b) => parseInt(a)-parseInt(b)).forEach(weekNum => {
+        const weekOffset = parseInt(weekNum) - 1;
+        html += `<div style="margin-bottom:20px;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
+            <div style="background:#0C047D;color:white;padding:10px;font-weight:bold;">Semana ${weekNum}</div><div style="padding:10px;">`;
+        Object.keys(planData[weekNum]).forEach(dayName => {
+            const routine = planData[weekNum][dayName];
+            const dayIndex = daysMap[dayName]; 
+            let daysToAdd = (dayIndex - startDate.getDay() + 7) % 7;
+            if (weekOffset > 0 || daysToAdd === 0) daysToAdd += (weekOffset * 7);
+            const exactDate = new Date(startDate); 
+            exactDate.setDate(startDate.getDate() + daysToAdd);
+            const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
+            const exNames = routine.exercises.map(e => e.name).join(', ');
+            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <strong>${dayName}</strong><span style="font-size:12px;color:#666;">📅 ${dateStr}</span>
+                </div>
+                <p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p>
+            </div>`;
+        });
+        html += `</div></div>`;
+    });
+    container.innerHTML = html;
+}
+
+function delete12WeekPlan() {
+    if (!confirm('⚠️ ¿Eliminar TODO el plan de 12 semanas y las rutinas programadas?')) return;
+    localStorage.removeItem('12_week_plan');
+    localStorage.removeItem('scheduled_routines');
+    currentRoutine = { exercises: [], totalTime: 0, restBetweenExercises: 0 };
+    clearFormInputs();
+    document.getElementById('total-time-display').innerText = '00:00';
+    document.getElementById('exercise-list').innerHTML = '';
+    syncPlanToCloud(); // Sincronizar la eliminación
+    alert('✅ Plan eliminado.');
+    showScheduledRoutines();
+}
 // ==========================================
 // 5. HISTORIAL
 // ==========================================
