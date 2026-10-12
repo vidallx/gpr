@@ -161,17 +161,16 @@ async function initApp() {
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
     
-    // 🆕 SINCRONIZACIÓN AUTOMÁTICA AL INICIAR
+    // 🆕 CARGA AUTOMÁTICA DESDE LA NUBE AL INICIAR SESIÓN
     if (navigator.onLine && supabaseClient) {
         try {
             const loaded = await loadPlanFromCloud();
             if (loaded) {
-                console.log('✅ Plan sincronizado desde la nube');
-                // Recargar la rutina del día actual si cambió
+                console.log('✅ Plan descargado de la nube al iniciar');
                 loadRoutineForDay(currentScheduledDay);
             }
         } catch (e) {
-            console.error('Error sincronizando al iniciar:', e);
+            console.error('Error al sincronizar al iniciar:', e);
         }
     }
 }
@@ -210,7 +209,6 @@ async function syncPlanToCloud() {
 
 async function loadPlanFromCloud() {
     if (!currentUser || !supabaseClient || !navigator.onLine) return false;
-    
     try {
         const { data, error } = await supabaseClient.from('user_plans')
             .select('*')
@@ -219,82 +217,47 @@ async function loadPlanFromCloud() {
         
         if (error) {
             if (error.code === 'PGRST116') {
-                console.log('ℹ️ No hay plan en la nube para este usuario');
+                console.log('ℹ️ No hay plan en la nube aún');
                 return false;
             }
-            console.error('❌ Error al cargar desde la nube:', error);
+            console.error('❌ Error nube:', error);
             return false;
         }
         
         if (data) {
-            const localScheduled = localStorage.getItem('scheduled_routines');
+            const localScheduled = localStorage.getItem('scheduled_routines') || '{}';
             const cloudData = JSON.stringify(data.scheduled_routines || {});
-            const localData = localScheduled || '{}';
             
-            // Solo sobrescribir si los datos son diferentes
-            if (localData !== cloudData) {
-                const hasLocalData = localScheduled && localScheduled !== '{}';
-                let shouldOverwrite = true;
-                
-                if (hasLocalData) {
-                    // 🆕 Comparar fechas para decidir automáticamente
-                    const localTime = JSON.parse(localData);
-                    const cloudTime = data.updated_at ? new Date(data.updated_at).getTime() : 0;
-                    
-                    // Si hay datos locales, preguntar solo si son muy recientes (últimas 24h)
-                    const localHasRecent = Object.values(localTime).some(r => {
-                        const savedAt = r.savedAt || r.importedAt;
-                        return savedAt && (Date.now() - new Date(savedAt).getTime()) < 24 * 60 * 60 * 1000;
-                    });
-                    
-                    if (localHasRecent && cloudTime > 0) {
-                        shouldOverwrite = confirm(
-                            '🔄 Se encontraron rutinas diferentes en la nube.\n\n' +
-                            '¿Deseas descargar las rutinas de la nube?\n' +
-                            '(Se reemplazarán las rutinas locales actuales)'
-                        );
-                    } else {
-                        // Datos locales antiguos o vacíos, sobrescribir automáticamente
-                        shouldOverwrite = true;
-                    }
-                }
-                
-                if (shouldOverwrite) {
-                    localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
-                    localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
-                    console.log('✅ Plan descargado desde la nube');
-                    loadRoutineForDay(currentScheduledDay);
-                    return true;
-                }
-            } else {
-                console.log('✅ Los datos locales y de la nube están sincronizados');
+            // Si los datos son iguales, no hacer nada
+            if (localScheduled === cloudData) {
+                console.log('✅ Ya sincronizado');
+                return false;
+            }
+            
+            // Si no hay datos locales, descargar automáticamente
+            const hasLocal = localScheduled !== '{}';
+            let descargar = true;
+            
+            if (hasLocal) {
+                descargar = confirm(
+                    '🔄 Hay rutinas diferentes en la nube.\n\n' +
+                    '¿Descargarlas? (Se reemplazarán las locales)'
+                );
+            }
+            
+            if (descargar) {
+                localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
+                localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
+                console.log('✅ Plan descargado desde la nube');
+                return true;
             }
         }
         return false;
     } catch (e) {
-        console.error("Error load cloud:", e);
+        console.error("Error loadPlanFromCloud:", e);
         return false;
     }
 }
-
-// 🆕 SINCRONIZACIÓN MANUAL (botón en la UI)
-async function syncNow() {
-    if (!currentUser) { alert('⚠️ Inicia sesión primero.'); return; }
-    if (!navigator.onLine) { alert('⚠️ No hay conexión a internet.'); return; }
-    if (!supabaseClient) { alert('❌ Supabase no está disponible.'); return; }
-    
-    try {
-        const success = await syncPlanToCloud();
-        if (success) {
-            alert('✅ Sincronización completada. Los datos se subieron a la nube.');
-        } else {
-            alert('⚠️ No se pudo sincronizar. Revisa la consola (F12) para más detalles.');
-        }
-    } catch (e) {
-        alert('❌ Error al sincronizar: ' + e.message);
-    }
-}
-
 // ==========================================
 // 2. ASISTENTE DE VOZ (24 FRASES)
 // ==========================================
