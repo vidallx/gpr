@@ -576,7 +576,7 @@ function deleteScheduledRoutine(day) {
 }
 
 // ==========================================
-// 🆕 IMPORTACIÓN CSV Y PLAN 12 SEMANAS
+// 🆕 IMPORTACIÓN CSV Y PLAN 12 SEMANAS (CORREGIDO)
 // ==========================================
 function downloadCSVTemplate() {
     const csv = "Semana,Dia,Ejercicio,Series,Reps,Peso,Equipo,Cantidad,Tempo_Ecc,Tempo_PB,Tempo_Con,Tempo_PT,Descanso_Serie,Grupo,Descanso_Global\n1,Lunes,Press Banca,4,8,60kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2\n1,Lunes,Remo,4,8,50kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2";
@@ -589,200 +589,254 @@ function downloadCSVTemplate() {
     document.body.removeChild(link);
 }
 
+// 🆕 Función auxiliar para limpiar números (quita "s", "kg", espacios)
+function parseNum(val, fallback = 0) {
+    if (val === undefined || val === null || val === '') return fallback;
+    const cleaned = String(val).replace(/[^\d.-]/g, ''); // quita todo excepto dígitos, . y -
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? fallback : n;
+}
+
 function handleCSVImport(event) {
     const file = event.target.files[0];
     if (!file) return;
-    try {
-        alert("📂 Procesando: " + file.name);
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            try {
-                const rows = e.target.result.split(/\r?\n/).filter(r => r.trim() !== '');
-                if (rows.length < 2) throw new Error("Archivo vacío");
 
-                const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-                const planData = {};
-                const invalidRows = [];
-
-                // ✅ PASO 1: Parsear y VALIDAR cada fila
-                for (let i = 1; i < rows.length; i++) {
-                    const cols = rows[i].split(',').map(c => c.trim());
-                    if (cols.length < 5) continue;
-                    
-                    const rowObj = {};
-                    headers.forEach((h, idx) => rowObj[h] = cols[idx] || '');
-
-                    // 🛡️ VALIDACIÓN: saltar filas sin nombre de ejercicio
-                    if (!rowObj.ejercicio || rowObj.ejercicio.trim() === '') {
-                        invalidRows.push(`Fila ${i + 1}: nombre de ejercicio vacío`);
-                        continue;
-                    }
-
-                    const semana = rowObj.semana || '1';
-                    const dia = rowObj.dia || 'Lunes';
-                    
-                    if (!planData[semana]) planData[semana] = {};
-                    if (!planData[semana][dia]) {
-                        planData[semana][dia] = {
-                            exercises: [],
-                            bodyPart: rowObj.grupo || 'Full Body',
-                            restGlobal: parseInt(rowObj.descanso_global) || 0
-                        };
-                    }
-
-                    let conVal = rowObj.tempo_con ? rowObj.tempo_con.trim().toUpperCase() : '0';
-                    let isExp = (conVal === 'X');
-
-                    planData[semana][dia].exercises.push({
-                        name: rowObj.ejercicio,
-                        sets: parseInt(rowObj.series) || 1,
-                        reps: parseInt(rowObj.reps) || 1,
-                        weight: rowObj.peso || '',
-                        equipment: rowObj.equipo || 'Sin equipo',
-                        quantity: parseInt(rowObj.cantidad) || 2,
-                        tempo: {
-                            ecc: parseInt(rowObj.tempo_ecc) || 0,
-                            pb: parseInt(rowObj.tempo_pb) || 0,
-                            con: isExp ? 1 : (parseInt(conVal) || 0),
-                            pt: parseInt(rowObj.tempo_pt) || 0,
-                            isExplosive: isExp
-                        },
-                        rest: { set: parseInt(rowObj.descanso_serie) || 0 }
-                    });
-                }
-
-                if (invalidRows.length > 0) {
-                    console.warn('⚠️ Filas ignoradas:', invalidRows);
-                }
-
-                // ✅ PASO 2: Cargar rutinas existentes
-                const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
-                const overwrittenDays = [];
-                const preservedDays = [];
-
-                // ✅ PASO 3: Procesar SOLO semana 1 y hacer MERGE inteligente
-                if (planData['1']) {
-                    Object.keys(planData['1']).forEach(day => {
-                        const r = planData['1'][day];
-                        
-                        // 🛡️ VALIDACIÓN: no sobrescribir si el día del CSV no tiene ejercicios válidos
-                        if (!r.exercises || r.exercises.length === 0) {
-                            console.warn(`⚠️ Día "${day}" en CSV sin ejercicios. Se preserva la rutina existente.`);
-                            return;
-                        }
-
-                        // Registrar si se va a sobrescribir
-                        if (currentRoutines[day]) {
-                            overwrittenDays.push(day);
-                        }
-
-                        let totalSec = 40;
-                        r.exercises.forEach((ex, idx) => {
-                            const isUni = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
-                            const cycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
-                            for (let s = 1; s <= ex.sets; s++) {
-                                totalSec += isUni ? (cycle * ex.reps) * 2 + 8 : (cycle * ex.reps);
-                                if (s < ex.sets) totalSec += ex.rest.set;
-                            }
-                            if (idx < r.exercises.length - 1) totalSec += r.restGlobal * 60;
-                        });
-                        
-                        currentRoutines[day] = {
-                            ...r,
-                            totalTime: totalSec,
-                            restBetweenExercises: r.restGlobal * 60,
-                            importedAt: new Date().toISOString()
-                        };
-                    });
-
-                    // ✅ PASO 4: Preservar días que NO están en el CSV
-                    Object.keys(currentRoutines).forEach(day => {
-                        if (!planData['1'][day]) {
-                            preservedDays.push(day);
-                        }
-                    });
-                }
-
-                // ✅ PASO 5: Confirmación antes de sobrescribir
-                let summary = `📋 Resumen de importación:\n\n`;
-                summary += `✅ Días importados: ${Object.keys(planData['1'] || {}).join(', ') || 'Ninguno'}\n`;
-                if (overwrittenDays.length > 0) {
-                    summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
-                }
-                if (preservedDays.length > 0) {
-                    summary += `✅ Se PRESERVARÁN: ${preservedDays.join(', ')}\n`;
-                }
-                if (invalidRows.length > 0) {
-                    summary += `⚠️ Filas ignoradas: ${invalidRows.length}\n`;
-                }
-                summary += `\n¿Continuar con la importación?`;
-
-                if (!confirm(summary)) {
-                    alert('❌ Importación cancelada. Nada ha cambiado.');
-                    event.target.value = '';
-                    return;
-                }
-
-                // ✅ PASO 6: Guardar todo
-                localStorage.setItem('12_week_plan', JSON.stringify(planData));
-                localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
-
-                await syncPlanToCloud();
-                alert('✅ ¡Plan importado y sincronizado con éxito!');
-                showScheduledRoutines();
-            } catch (err) {
-                console.error(err);
-                alert('❌ Error al leer el CSV. Usa la plantilla descargada.');
-            }
-        };
-        reader.onerror = function() { alert('❌ Error al leer el archivo.'); };
-        reader.readAsText(file);
-    } catch (error) {
-        console.error(error);
-        alert('❌ Error inesperado.');
+    // 🛡️ Validación de tipo de archivo
+    const isValidType = file.name.toLowerCase().endsWith('.csv') || 
+                        file.type === 'text/csv' || 
+                        file.type === 'application/vnd.ms-excel';
+    if (!isValidType) {
+        alert('⚠️ Archivo no válido. Selecciona un archivo .csv');
+        event.target.value = '';
+        return;
     }
-    event.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const text = e.target.result;
+            // 🛡️ Detectar y eliminar BOM (Byte Order Mark) de archivos Windows
+            const cleanText = text.replace(/^\uFEFF/, '');
+            const rows = cleanText.split(/\r?\n/).filter(r => r.trim() !== '');
+
+            if (rows.length < 2) {
+                alert('❌ El archivo está vacío o no tiene datos.');
+                event.target.value = '';
+                return;
+            }
+
+            // 🛡️ Parsear cabeceras limpiando espacios y caracteres raros
+            const headers = rows[0].split(',').map(h => 
+                h.trim().toLowerCase().replace(/[^\wáéíóúñ]/g, '')
+            );
+
+            // Validar que existan las columnas mínimas
+            const requiredCols = ['semana', 'dia', 'ejercicio'];
+            const missingCols = requiredCols.filter(c => !headers.includes(c));
+            if (missingCols.length > 0) {
+                alert(`❌ Faltan columnas obligatorias: ${missingCols.join(', ')}\n\nCabeceras detectadas: ${headers.join(', ')}`);
+                event.target.value = '';
+                return;
+            }
+
+            const planData = {};
+            const invalidRows = [];
+            let validCount = 0;
+
+            for (let i = 1; i < rows.length; i++) {
+                const cols = rows[i].split(',').map(c => c.trim());
+                if (cols.length < 3) continue;
+
+                const rowObj = {};
+                headers.forEach((h, idx) => {
+                    if (h) rowObj[h] = cols[idx] || '';
+                });
+
+                // 🛡️ Validar nombre de ejercicio
+                if (!rowObj.ejercicio || rowObj.ejercicio.trim() === '') {
+                    invalidRows.push(`Fila ${i + 1}: ejercicio vacío`);
+                    continue;
+                }
+
+                const semana = String(parseNum(rowObj.semana, 1));
+                const dia = (rowObj.dia || 'Lunes').trim();
+
+                // Validar día
+                const diasValidos = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+                if (!diasValidos.includes(dia)) {
+                    invalidRows.push(`Fila ${i + 1}: día inválido "${dia}"`);
+                    continue;
+                }
+
+                if (!planData[semana]) planData[semana] = {};
+                if (!planData[semana][dia]) {
+                    planData[semana][dia] = {
+                        exercises: [],
+                        bodyPart: rowObj.grupo || 'Full Body',
+                        restGlobal: parseNum(rowObj.descanso_global, 0)
+                    };
+                }
+
+                // 🆕 Parseo robusto de tempo (acepta "X", números, vacío)
+                let conVal = rowObj.tempo_con ? String(rowObj.tempo_con).trim().toUpperCase() : '0';
+                let isExp = (conVal === 'X');
+
+                planData[semana][dia].exercises.push({
+                    name: rowObj.ejercicio,
+                    sets: parseNum(rowObj.series, 1),
+                    reps: parseNum(rowObj.reps, 1),
+                    weight: rowObj.peso || '',
+                    equipment: rowObj.equipo || 'Sin equipo',
+                    quantity: parseNum(rowObj.cantidad, 2),
+                    tempo: {
+                        ecc: parseNum(rowObj.tempo_ecc, 0),
+                        pb: parseNum(rowObj.tempo_pb, 0),
+                        con: isExp ? 1 : parseNum(conVal, 0),
+                        pt: parseNum(rowObj.tempo_pt, 0),
+                        isExplosive: isExp
+                    },
+                    rest: { set: parseNum(rowObj.descanso_serie, 0) }
+                });
+                validCount++;
+            }
+
+            if (validCount === 0) {
+                alert('❌ No se encontraron ejercicios válidos en el CSV.');
+                event.target.value = '';
+                return;
+            }
+
+            // ✅ Cargar rutinas existentes y hacer MERGE
+            const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+            const overwrittenDays = [];
+            const preservedDays = [];
+            const importedDays = [];
+
+            if (planData['1']) {
+                Object.keys(planData['1']).forEach(day => {
+                    const r = planData['1'][day];
+                    if (!r.exercises || r.exercises.length === 0) return;
+
+                    if (currentRoutines[day]) overwrittenDays.push(day);
+                    else importedDays.push(day);
+
+                    let totalSec = 40;
+                    r.exercises.forEach((ex, idx) => {
+                        const isUni = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
+                        const cycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
+                        for (let s = 1; s <= ex.sets; s++) {
+                            totalSec += isUni ? (cycle * ex.reps) * 2 + 8 : (cycle * ex.reps);
+                            if (s < ex.sets) totalSec += ex.rest.set;
+                        }
+                        if (idx < r.exercises.length - 1) totalSec += r.restGlobal * 60;
+                    });
+
+                    currentRoutines[day] = {
+                        ...r,
+                        totalTime: totalSec,
+                        restBetweenExercises: r.restGlobal * 60,
+                        importedAt: new Date().toISOString()
+                    };
+                });
+
+                Object.keys(currentRoutines).forEach(day => {
+                    if (!planData['1'][day]) preservedDays.push(day);
+                });
+            }
+
+            // ✅ Resumen y confirmación
+            let summary = `📋 Resumen de importación:\n\n`;
+            summary += `✅ Ejercicios válidos: ${validCount}\n`;
+            summary += `📅 Semanas detectadas: ${Object.keys(planData).join(', ')}\n`;
+            summary += `🆕 Días nuevos: ${importedDays.join(', ') || 'Ninguno'}\n`;
+            if (overwrittenDays.length > 0) {
+                summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
+            }
+            if (preservedDays.length > 0) {
+                summary += `💾 Se PRESERVARÁN: ${preservedDays.join(', ')}\n`;
+            }
+            if (invalidRows.length > 0) {
+                summary += `\n⚠️ Filas ignoradas: ${invalidRows.length}`;
+            }
+            summary += `\n\n¿Continuar?`;
+
+            if (!confirm(summary)) {
+                alert('❌ Importación cancelada.');
+                event.target.value = '';
+                return;
+            }
+
+            // ✅ Guardar
+            localStorage.setItem('12_week_plan', JSON.stringify(planData));
+            localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
+            
+            await syncPlanToCloud();
+            
+            alert(`✅ ¡Importación exitosa!\n\n${validCount} ejercicios de ${Object.keys(planData).length} semana(s) cargados.`);
+            showScheduledRoutines();
+        } catch (err) {
+            console.error('Error CSV:', err);
+            alert('❌ Error al procesar el CSV: ' + err.message);
+        }
+    };
+
+    reader.onerror = function() { 
+        alert('❌ No se pudo leer el archivo.'); 
+    };
+    
+    reader.readAsText(file, 'UTF-8'); // 🆕 Forzar UTF-8 para tildes
+    event.target.value = ''; // 🆕 Limpiar input para poder reimportar el mismo archivo
 }
 
 function show12WeekPlan() {
     const section = document.getElementById('twelve-week-section');
     if (!section) {
-        alert('⚠️ La sección de Plan 12 Semanas no existe en el HTML. Actualiza tu index.html.');
+        alert('⚠️ La sección de Plan 12 Semanas no existe en el HTML.');
         return;
     }
     showInterface('twelve-week-section');
     const planData = JSON.parse(localStorage.getItem('12_week_plan') || '{}');
-    const container = document.getElementById('twelve-week-content');
+    const container = document.getElementById('twelve-week-content'); // ✅ SIN ESPACIOS
     if (!container) return;
+
     if (Object.keys(planData).length === 0) {
         container.innerHTML = '<p style="text-align:center;color:#999;">No hay plan importado.</p>';
         return;
     }
-    const startDate = new Date(); startDate.setHours(0,0,0,0);
+
+    const startDate = new Date(); 
+    startDate.setHours(0,0,0,0);
     const daysMap = { 'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sábado':6,'Domingo':0 };
-    let html = '';
-    Object.keys(planData).sort((a,b) => parseInt(a)-parseInt(b)).forEach(weekNum => {
-        const weekOffset = parseInt(weekNum) - 1;
-        html += `<div style="margin-bottom:20px;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
-            <div style="background:#0C047D;color:white;padding:10px;font-weight:bold;">Semana ${weekNum}</div><div style="padding:10px;">`;
-        Object.keys(planData[weekNum]).forEach(dayName => {
-            const routine = planData[weekNum][dayName];
-            const dayIndex = daysMap[dayName];
-            let daysToAdd = (dayIndex - startDate.getDay() + 7) % 7;
-            if (weekOffset > 0 || daysToAdd === 0) daysToAdd += (weekOffset * 7);
-            const exactDate = new Date(startDate);
-            exactDate.setDate(startDate.getDate() + daysToAdd);
-            const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
-            const exNames = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <strong>${dayName}</strong><span style="font-size:12px;color:#666;">📅 ${dateStr}</span>
-                </div>
-                <p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p>
-            </div>`;
+    let html = ''; // ✅ SIN ESPACIOS
+
+    Object.keys(planData)
+        .sort((a,b) => parseInt(a) - parseInt(b)) // ✅ SIN ESPACIOS
+        .forEach(weekNum => { // ✅ SIN ESPACIOS
+            const weekOffset = parseInt(weekNum) - 1;
+            html += `<div style="margin-bottom:20px;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
+                <div style="background:#0C047D;color:white;padding:10px;font-weight:bold;">Semana ${weekNum}</div>
+                <div style="padding:10px;">`;
+            
+            Object.keys(planData[weekNum]).forEach(dayName => {
+                const routine = planData[weekNum][dayName];
+                const dayIndex = daysMap[dayName];
+                let daysToAdd = (dayIndex - startDate.getDay() + 7) % 7;
+                if (weekOffset > 0 || daysToAdd === 0) daysToAdd += (weekOffset * 7);
+                const exactDate = new Date(startDate);
+                exactDate.setDate(startDate.getDate() + daysToAdd);
+                const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
+                const exNames = routine.exercises.map(e => e.name).join(', ');
+                
+                html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <strong>${dayName}</strong>
+                        <span style="font-size:12px;color:#666;">📅 ${dateStr}</span>
+                    </div>
+                    <p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p>
+                </div>`;
+            });
+            html += `</div></div>`;
         });
-        html += `</div></div>`;
-    });
     container.innerHTML = html;
 }
 
