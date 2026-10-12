@@ -155,7 +155,7 @@
             </div>
         </section>
 
-        <!-- MIS RUTINAS (CON IMPORTACIÓN CSV) -->
+                <!-- MIS RUTINAS (CON IMPORTACIÓN CSV BLINDADA) -->
         <section id="scheduled-routines-section" class="interface">
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -163,21 +163,36 @@
                     <button onclick="showInterface('programmer-section')" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer;">⬅ Volver</button>
                 </div>
 
-                <!-- IMPORTACIÓN CSV -->
+                <!-- 🆕 IMPORTACIÓN CSV BLINDADA PARA MÓVILES -->
                 <div style="background: #e8f5e9; padding: 15px; border-radius: 10px; margin-bottom: 15px; text-align: center; border: 1px solid #c8e6c9;">
                     <h3 style="color: #28a745; margin: 0 0 10px 0; font-size: 16px;">Importar Plan de 12 Semanas</h3>
-                    <p style="font-size: 13px; color: #555; margin-bottom: 10px;">Sube tu archivo CSV para programar rutinas con fechas exactas.</p>
+                    <p style="font-size: 13px; color: #555; margin-bottom: 10px;">Sube tu archivo CSV. Se sincronizará con tu móvil.</p>
+                    
+                    <!-- Input oculto pero funcional -->
                     <input type="file" id="csv-import" accept=".csv" style="display:none;" onchange="handleCSVImport(event)">
-                    <button class="primary-btn" onclick="document.getElementById('csv-import').click()" style="background: #28a745; margin-bottom: 8px;">📥 Importar CSV</button>
+                    
+                    <button type="button" class="primary-btn" onclick="document.getElementById('csv-import').click()" style="background: #28a745; margin-bottom: 8px;">📥 Importar CSV</button>
                     <br>
-                    <button class="secondary" onclick="downloadCSVTemplate()" style="font-size: 12px; padding: 8px;">📄 Descargar Plantilla CSV</button>
+                    <button type="button" class="secondary" onclick="downloadCSVTemplate()" style="font-size: 12px; padding: 8px;">📄 Descargar Plantilla CSV</button>
                 </div>
 
-                <button class="secondary" onclick="show12WeekPlan()" style="background: #0C047D; color: white; margin-bottom: 10px; font-weight: bold;">🗓️ Ver Plan de 12 Semanas</button>
-                <button class="danger" onclick="delete12WeekPlan()" style="font-size: 13px; padding: 10px;">🗑️ Eliminar Plan Completo</button>
+                <button type="button" class="secondary" onclick="show12WeekPlan()" style="background: #0C047D; color: white; margin-bottom: 10px; font-weight: bold;">🗓️ Ver Plan de 12 Semanas</button>
+                <button type="button" class="danger" onclick="delete12WeekPlan()" style="font-size: 13px; padding: 10px;">🗑️ Eliminar Plan Completo</button>
 
                 <p style="color: #666; font-size: 14px; margin-bottom: 15px; text-align: center;">Tus rutinas programadas para cada día:</p>
                 <div id="scheduled-routines-list"></div>
+            </div>
+        </section>
+
+        <!-- PLAN 12 SEMANAS -->
+        <section id="twelve-week-section" class="interface">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">🗓️ Plan de 12 Semanas</h2>
+                    <button onclick="showScheduledRoutines()" style="width: auto; padding: 8px 15px; font-size: 14px; background: #e0e0e0; border: none; border-radius: 8px; cursor: pointer;">⬅ Volver</button>
+                </div>
+                <p style="color: #666; font-size: 13px; margin-bottom: 15px; text-align: center;">Calendario calculado desde la fecha de hoy.</p>
+                <div id="twelve-week-content" style="max-height: 60vh; overflow-y: auto;"></div>
             </div>
         </section>
 
