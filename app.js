@@ -599,21 +599,40 @@ function handleCSVImport(event) {
             try {
                 const rows = e.target.result.split(/\r?\n/).filter(r => r.trim() !== '');
                 if (rows.length < 2) throw new Error("Archivo vacío");
+
                 const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
                 const planData = {};
+                const invalidRows = [];
+
+                // ✅ PASO 1: Parsear y VALIDAR cada fila
                 for (let i = 1; i < rows.length; i++) {
                     const cols = rows[i].split(',').map(c => c.trim());
                     if (cols.length < 5) continue;
+                    
                     const rowObj = {};
                     headers.forEach((h, idx) => rowObj[h] = cols[idx] || '');
+
+                    // 🛡️ VALIDACIÓN: saltar filas sin nombre de ejercicio
+                    if (!rowObj.ejercicio || rowObj.ejercicio.trim() === '') {
+                        invalidRows.push(`Fila ${i + 1}: nombre de ejercicio vacío`);
+                        continue;
+                    }
+
                     const semana = rowObj.semana || '1';
                     const dia = rowObj.dia || 'Lunes';
+                    
                     if (!planData[semana]) planData[semana] = {};
                     if (!planData[semana][dia]) {
-                        planData[semana][dia] = { exercises: [], bodyPart: rowObj.grupo || 'Full Body', restGlobal: parseInt(rowObj.descanso_global) || 0 };
+                        planData[semana][dia] = {
+                            exercises: [],
+                            bodyPart: rowObj.grupo || 'Full Body',
+                            restGlobal: parseInt(rowObj.descanso_global) || 0
+                        };
                     }
+
                     let conVal = rowObj.tempo_con ? rowObj.tempo_con.trim().toUpperCase() : '0';
                     let isExp = (conVal === 'X');
+
                     planData[semana][dia].exercises.push({
                         name: rowObj.ejercicio,
                         sets: parseInt(rowObj.series) || 1,
@@ -631,11 +650,32 @@ function handleCSVImport(event) {
                         rest: { set: parseInt(rowObj.descanso_serie) || 0 }
                     });
                 }
-                localStorage.setItem('12_week_plan', JSON.stringify(planData));
+
+                if (invalidRows.length > 0) {
+                    console.warn('⚠️ Filas ignoradas:', invalidRows);
+                }
+
+                // ✅ PASO 2: Cargar rutinas existentes
+                const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
+                const overwrittenDays = [];
+                const preservedDays = [];
+
+                // ✅ PASO 3: Procesar SOLO semana 1 y hacer MERGE inteligente
                 if (planData['1']) {
-                    const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
                     Object.keys(planData['1']).forEach(day => {
                         const r = planData['1'][day];
+                        
+                        // 🛡️ VALIDACIÓN: no sobrescribir si el día del CSV no tiene ejercicios válidos
+                        if (!r.exercises || r.exercises.length === 0) {
+                            console.warn(`⚠️ Día "${day}" en CSV sin ejercicios. Se preserva la rutina existente.`);
+                            return;
+                        }
+
+                        // Registrar si se va a sobrescribir
+                        if (currentRoutines[day]) {
+                            overwrittenDays.push(day);
+                        }
+
                         let totalSec = 40;
                         r.exercises.forEach((ex, idx) => {
                             const isUni = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
@@ -646,10 +686,47 @@ function handleCSVImport(event) {
                             }
                             if (idx < r.exercises.length - 1) totalSec += r.restGlobal * 60;
                         });
-                        currentRoutines[day] = { ...r, totalTime: totalSec, restBetweenExercises: r.restGlobal * 60 };
+                        
+                        currentRoutines[day] = {
+                            ...r,
+                            totalTime: totalSec,
+                            restBetweenExercises: r.restGlobal * 60,
+                            importedAt: new Date().toISOString()
+                        };
                     });
-                    localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
+
+                    // ✅ PASO 4: Preservar días que NO están en el CSV
+                    Object.keys(currentRoutines).forEach(day => {
+                        if (!planData['1'][day]) {
+                            preservedDays.push(day);
+                        }
+                    });
                 }
+
+                // ✅ PASO 5: Confirmación antes de sobrescribir
+                let summary = `📋 Resumen de importación:\n\n`;
+                summary += `✅ Días importados: ${Object.keys(planData['1'] || {}).join(', ') || 'Ninguno'}\n`;
+                if (overwrittenDays.length > 0) {
+                    summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
+                }
+                if (preservedDays.length > 0) {
+                    summary += `✅ Se PRESERVARÁN: ${preservedDays.join(', ')}\n`;
+                }
+                if (invalidRows.length > 0) {
+                    summary += `⚠️ Filas ignoradas: ${invalidRows.length}\n`;
+                }
+                summary += `\n¿Continuar con la importación?`;
+
+                if (!confirm(summary)) {
+                    alert('❌ Importación cancelada. Nada ha cambiado.');
+                    event.target.value = '';
+                    return;
+                }
+
+                // ✅ PASO 6: Guardar todo
+                localStorage.setItem('12_week_plan', JSON.stringify(planData));
+                localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
+
                 await syncPlanToCloud();
                 alert('✅ ¡Plan importado y sincronizado con éxito!');
                 showScheduledRoutines();
