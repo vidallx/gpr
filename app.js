@@ -173,12 +173,15 @@ async function syncPlanToCloud() {
     try {
         const plan12 = localStorage.getItem('12_week_plan') || '{}';
         const scheduled = localStorage.getItem('scheduled_routines') || '{}';
+        
+        // 🆕 CORRECCIÓN: Se añade { onConflict: 'user_id' } para actualizar en lugar de duplicar
         const { error } = await supabaseClient.from('user_plans').upsert({
             user_id: currentUser.id,
             plan_12_weeks: JSON.parse(plan12),
             scheduled_routines: JSON.parse(scheduled),
             updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'user_id' });
+
         if (error) {
             console.error('❌ Error al subir a la nube:', error);
             return false;
