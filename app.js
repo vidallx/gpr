@@ -3,7 +3,18 @@
 // ==========================================
 const SUPABASE_URL = 'https://doyzequfqtdjtnldewhh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXplcXVmcXRkanRubGRld2hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0ODA4NTksImV4cCI6MjA5NzA1Njg1OX0.hBE_AwyEfKX1pF0rk2No3loAVAVJ6U6AjusAvjQTQmI';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let supabaseClient = null;
+try {
+    if (window.supabase) {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        console.log('✅ Supabase inicializado correctamente');
+    } else {
+        console.error('❌ La librería de Supabase no está cargada. Verifica el CDN en index.html');
+    }
+} catch (e) {
+    console.error('❌ Error al inicializar Supabase:', e);
+}
 
 // ==========================================
 // ESTADO GLOBAL & WAKE LOCK
@@ -104,6 +115,7 @@ function updateDayInfo(day, hasRoutine) {
 // 1. AUTENTICACIÓN
 // ==========================================
 async function login() {
+    if (!supabaseClient) return alert('❌ Error: Supabase no está conectado. Recarga la página.');
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -113,6 +125,7 @@ async function login() {
 }
 
 async function register() {
+    if (!supabaseClient) return alert('❌ Error: Supabase no está conectado.');
     const name = document.getElementById('user-name').value.trim();
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
@@ -130,9 +143,9 @@ async function register() {
 }
 
 async function resetPassword() {
+    if (!supabaseClient) return alert('❌ Error: Supabase no está conectado.');
     const email = document.getElementById('login-email').value;
     if (!email) return showMessage('⚠️ Escribe tu correo.', 'auth-message');
-    showMessage('Enviando enlace...', 'auth-message');
     const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
     if (error) showMessage('Error: ' + error.message, 'auth-message');
     else showMessage('✅ Enlace enviado a tu correo.', 'auth-message');
@@ -147,52 +160,70 @@ async function initApp() {
     showInterface('programmer-section');
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
-    await loadPlanFromCloud(); // 🆕 Descargar datos de la nube al iniciar sesión
 }
 
 // ==========================================
-// 🆕 SINCRONIZACIÓN EN LA NUBE (MEJORADA)
+// 🆕 SINCRONIZACIÓN EN LA NUBE (ROBUSTA)
 // ==========================================
 async function syncPlanToCloud() {
-    if (!currentUser || !navigator.onLine) return;
+    if (!currentUser || !supabaseClient || !navigator.onLine) {
+        console.log('⚠️ Sincronización omitida (sin usuario, sin conexión o sin cliente)');
+        return false;
+    }
     try {
         const plan12 = localStorage.getItem('12_week_plan') || '{}';
         const scheduled = localStorage.getItem('scheduled_routines') || '{}';
-        await supabaseClient.from('user_plans').upsert({
+        const { error } = await supabaseClient.from('user_plans').upsert({
             user_id: currentUser.id,
             plan_12_weeks: JSON.parse(plan12),
             scheduled_routines: JSON.parse(scheduled),
             updated_at: new Date().toISOString()
         });
-        console.log('✅ Plan subido a la nube');
-    } catch (e) { console.error("Error sync cloud:", e); }
+        if (error) {
+            console.error('❌ Error al subir a la nube:', error);
+            return false;
+        }
+        console.log('✅ Plan subido a la nube correctamente');
+        return true;
+    } catch (e) {
+        console.error("Error sync cloud:", e);
+        return false;
+    }
 }
 
 async function loadPlanFromCloud() {
-    if (!currentUser || !navigator.onLine) return;
+    if (!currentUser || !supabaseClient || !navigator.onLine) return false;
     try {
         const { data, error } = await supabaseClient.from('user_plans')
             .select('*')
             .eq('user_id', currentUser.id)
             .single();
 
-        if (data && !error) {
-            // 🆕 LÓGICA MEJORADA: Comparar fechas para decidir si sobrescribir
+        if (error) {
+            // Si el error es "no rows", significa que el usuario nunca ha sincronizado
+            if (error.code === 'PGRST116') {
+                console.log('ℹ️ No hay plan en la nube para este usuario');
+                return false;
+            }
+            console.error('❌ Error al cargar desde la nube:', error);
+            return false;
+        }
+
+        if (data) {
             const localScheduled = localStorage.getItem('scheduled_routines');
             const cloudData = JSON.stringify(data.scheduled_routines || {});
             const localData = localScheduled || '{}';
 
-            // Si los datos son diferentes, preguntar al usuario o sobrescribir si el local está vacío
-            if (!localScheduled || localScheduled === '{}' || localData !== cloudData) {
+            // Solo sobrescribir si los datos son diferentes Y el usuario lo confirma
+            if (localData !== cloudData) {
                 const hasLocalData = localScheduled && localScheduled !== '{}';
                 let shouldOverwrite = true;
 
                 if (hasLocalData) {
-                    // Solo preguntar si hay datos locales diferentes a los de la nube
                     shouldOverwrite = confirm(
-                        '🔄 Se encontraron rutinas en la nube diferentes a las locales.\n\n' +
+                        '🔄 Se encontraron rutinas diferentes en la nube.\n\n' +
                         '¿Deseas descargar las rutinas de la nube?\n' +
-                        '(Se reemplazarán las rutinas locales)'
+                        '(Se reemplazarán las rutinas locales actuales)'
                     );
                 }
 
@@ -201,22 +232,32 @@ async function loadPlanFromCloud() {
                     localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
                     console.log('✅ Plan descargado desde la nube');
                     loadRoutineForDay(currentScheduledDay);
-                    if (hasLocalData) alert('✅ Rutinas sincronizadas desde la nube.');
+                    return true;
                 }
+            } else {
+                console.log('✅ Los datos locales y de la nube están sincronizados');
             }
         }
-    } catch (e) { console.error("Error load cloud:", e); }
+        return false;
+    } catch (e) {
+        console.error("Error load cloud:", e);
+        return false;
+    }
 }
 
 // 🆕 SINCRONIZACIÓN MANUAL (botón en la UI)
 async function syncNow() {
     if (!currentUser) { alert('⚠️ Inicia sesión primero.'); return; }
     if (!navigator.onLine) { alert('⚠️ No hay conexión a internet.'); return; }
+    if (!supabaseClient) { alert('❌ Supabase no está disponible.'); return; }
+    
     try {
-        await syncPlanToCloud();
-        await loadPlanFromCloud();
-        alert('✅ Sincronización completada.');
-        renderScheduledRoutines();
+        const success = await syncPlanToCloud();
+        if (success) {
+            alert('✅ Sincronización completada. Los datos se subieron a la nube.');
+        } else {
+            alert('⚠️ No se pudo sincronizar. Revisa la consola (F12) para más detalles.');
+        }
     } catch (e) {
         alert('❌ Error al sincronizar: ' + e.message);
     }
@@ -415,20 +456,20 @@ function saveRoutineToStorage() {
         savedAt: new Date().toISOString()
     };
     localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines));
-    syncPlanToCloud(); // 🆕 Sincronizar con la nube
+    // Sincronizar en segundo plano (no bloquea la UI)
+    syncPlanToCloud().catch(e => console.error('Sync falló:', e));
 }
 
 function saveRoutineOnly() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
     saveRoutineToStorage();
     updateDayInfo(currentScheduledDay, true);
-    alert(`✅ Rutina guardada para el ${currentScheduledDay} y sincronizada.`);
+    alert(`✅ Rutina guardada para el ${currentScheduledDay}.`);
 }
 
 function saveAndStartRoutine() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
     saveRoutineToStorage();
-    localStorage.setItem('pending_routine', JSON.stringify(currentRoutine));
     buildTimerQueue();
     showInterface('executor-section');
     requestWakeLock();
@@ -520,7 +561,7 @@ function deleteScheduledRoutine(day) {
     const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
     delete allRoutines[day];
     localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines));
-    syncPlanToCloud(); // 🆕 Sincronizar eliminación
+    syncPlanToCloud();
     if (day === currentScheduledDay) {
         currentRoutine = { exercises: [], totalTime: 0, restBetweenExercises: 0 };
         clearFormInputs();
@@ -624,9 +665,15 @@ function handleCSVImport(event) {
 }
 
 function show12WeekPlan() {
+    const section = document.getElementById('twelve-week-section');
+    if (!section) {
+        alert('⚠️ La sección de Plan 12 Semanas no existe en el HTML. Actualiza tu index.html.');
+        return;
+    }
     showInterface('twelve-week-section');
     const planData = JSON.parse(localStorage.getItem('12_week_plan') || '{}');
     const container = document.getElementById('twelve-week-content');
+    if (!container) return;
     if (Object.keys(planData).length === 0) {
         container.innerHTML = '<p style="text-align:center;color:#999;">No hay plan importado.</p>';
         return;
@@ -887,6 +934,7 @@ function updateTimerUI(item) {
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
 
     const circle = document.querySelector('.progress-ring__circle');
+    if (!circle) return;
     const radius = circle.r.baseVal.value;
     const circumference = radius * 2 * Math.PI;
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
@@ -1040,7 +1088,11 @@ async function saveHistory() {
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history.push(record);
     localStorage.setItem('gym_history', JSON.stringify(history));
-    if (navigator.onLine && currentUser) await supabaseClient.from('routines').insert(record);
+    if (navigator.onLine && currentUser && supabaseClient) {
+        try {
+            await supabaseClient.from('routines').insert(record);
+        } catch (e) { console.error('Error guardando en Supabase:', e); }
+    }
 }
 
 async function loadHistory() {
@@ -1049,9 +1101,11 @@ async function loadHistory() {
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history = history.filter(h => new Date(h.date) >= sixWeeksAgo);
     localStorage.setItem('gym_history', JSON.stringify(history));
-    if (navigator.onLine && currentUser) {
-        const { data } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
-        if (data) history = [...data, ...history].filter((v, i, a) => a.findIndex(t => (t.date === v.date && t.body_part === v.body_part && JSON.stringify(t.exercises) === JSON.stringify(v.exercises))) === i);
+    if (navigator.onLine && currentUser && supabaseClient) {
+        try {
+            const { data } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
+            if (data) history = [...data, ...history].filter((v, i, a) => a.findIndex(t => (t.date === v.date && t.body_part === v.body_part && JSON.stringify(t.exercises) === JSON.stringify(v.exercises))) === i);
+        } catch (e) { console.error('Error cargando historial:', e); }
     }
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
     allHistoryData = history;
@@ -1177,8 +1231,11 @@ function showInterface(id) {
         el.classList.remove('active');
         el.classList.add('hidden');
     });
-    document.getElementById(id).classList.remove('hidden');
-    document.getElementById(id).classList.add('active');
+    const target = document.getElementById(id);
+    if (target) {
+        target.classList.remove('hidden');
+        target.classList.add('active');
+    }
     if (id === 'executor-section') setTimeout(() => checkPausedRoutine(), 300);
 }
 
