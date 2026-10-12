@@ -160,6 +160,20 @@ async function initApp() {
     showInterface('programmer-section');
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
+    
+    // 🆕 SINCRONIZACIÓN AUTOMÁTICA AL INICIAR
+    if (navigator.onLine && supabaseClient) {
+        try {
+            const loaded = await loadPlanFromCloud();
+            if (loaded) {
+                console.log('✅ Plan sincronizado desde la nube');
+                // Recargar la rutina del día actual si cambió
+                loadRoutineForDay(currentScheduledDay);
+            }
+        } catch (e) {
+            console.error('Error sincronizando al iniciar:', e);
+        }
+    }
 }
 
 // ==========================================
@@ -196,14 +210,14 @@ async function syncPlanToCloud() {
 
 async function loadPlanFromCloud() {
     if (!currentUser || !supabaseClient || !navigator.onLine) return false;
+    
     try {
         const { data, error } = await supabaseClient.from('user_plans')
             .select('*')
             .eq('user_id', currentUser.id)
             .single();
-
+        
         if (error) {
-            // Si el error es "no rows", significa que el usuario nunca ha sincronizado
             if (error.code === 'PGRST116') {
                 console.log('ℹ️ No hay plan en la nube para este usuario');
                 return false;
@@ -211,25 +225,40 @@ async function loadPlanFromCloud() {
             console.error('❌ Error al cargar desde la nube:', error);
             return false;
         }
-
+        
         if (data) {
             const localScheduled = localStorage.getItem('scheduled_routines');
             const cloudData = JSON.stringify(data.scheduled_routines || {});
             const localData = localScheduled || '{}';
-
-            // Solo sobrescribir si los datos son diferentes Y el usuario lo confirma
+            
+            // Solo sobrescribir si los datos son diferentes
             if (localData !== cloudData) {
                 const hasLocalData = localScheduled && localScheduled !== '{}';
                 let shouldOverwrite = true;
-
+                
                 if (hasLocalData) {
-                    shouldOverwrite = confirm(
-                        '🔄 Se encontraron rutinas diferentes en la nube.\n\n' +
-                        '¿Deseas descargar las rutinas de la nube?\n' +
-                        '(Se reemplazarán las rutinas locales actuales)'
-                    );
+                    // 🆕 Comparar fechas para decidir automáticamente
+                    const localTime = JSON.parse(localData);
+                    const cloudTime = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+                    
+                    // Si hay datos locales, preguntar solo si son muy recientes (últimas 24h)
+                    const localHasRecent = Object.values(localTime).some(r => {
+                        const savedAt = r.savedAt || r.importedAt;
+                        return savedAt && (Date.now() - new Date(savedAt).getTime()) < 24 * 60 * 60 * 1000;
+                    });
+                    
+                    if (localHasRecent && cloudTime > 0) {
+                        shouldOverwrite = confirm(
+                            '🔄 Se encontraron rutinas diferentes en la nube.\n\n' +
+                            '¿Deseas descargar las rutinas de la nube?\n' +
+                            '(Se reemplazarán las rutinas locales actuales)'
+                        );
+                    } else {
+                        // Datos locales antiguos o vacíos, sobrescribir automáticamente
+                        shouldOverwrite = true;
+                    }
                 }
-
+                
                 if (shouldOverwrite) {
                     localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
                     localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
