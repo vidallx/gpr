@@ -1,10 +1,29 @@
 // ==========================================
+// 🆕 PLUGIN NATIVO DE VOZ (CAPACITOR)
+// Acceso vía window.Capacitor.Plugins (sin bundler)
+// ==========================================
+let TTSPlugin = null;
+let ttsReady = false;
+
+try {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+        TTSPlugin = window.Capacitor.Plugins.TextToSpeech;
+        ttsReady = true;
+        console.log('✅ Plugin TTS nativo cargado vía Capacitor.Plugins');
+    } else {
+        console.warn('️ Plugin TTS no registrado. Usando fallback web.');
+    }
+} catch (e) {
+    console.warn('⚠️ Error cargando plugin TTS:', e);
+}
+
+// ==========================================
 // CONFIGURACIÓN SUPABASE
 // ==========================================
 const SUPABASE_URL = 'https://doyzequfqtdjtnldewhh.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRveXplcXVmcXRkanRubGRld2hoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0ODA4NTksImV4cCI6MjA5NzA1Njg1OX0.hBE_AwyEfKX1pF0rk2No3loAVAVJ6U6AjusAvjQTQmI';
-
 let supabaseClient = null;
+
 try {
     if (window.supabase) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -39,9 +58,11 @@ async function requestWakeLock() {
         }
     } catch (err) { console.error('Error Wake Lock:', err); }
 }
+
 function releaseWakeLock() {
     if (wakeLock) { wakeLock.release().then(() => { wakeLock = null; }); }
 }
+
 document.addEventListener('visibilitychange', async () => {
     if (wakeLock && document.visibilityState === 'visible') await requestWakeLock();
 });
@@ -130,8 +151,8 @@ async function register() {
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
     const passwordConfirm = document.getElementById('register-password-confirm').value;
-    if (!name) return showMessage('⚠️ Ingresa tu nombre.', 'register-message');
-    if (!email || !password) return showMessage('⚠️ Completa todos los campos.', 'register-message');
+    if (!name) return showMessage('️ Ingresa tu nombre.', 'register-message');
+    if (!email || !password) return showMessage('️ Completa todos los campos.', 'register-message');
     if (password.length < 6) return showMessage('⚠️ Contraseña mín 6 caracteres.', 'register-message');
     if (password !== passwordConfirm) return showMessage('⚠️ Contraseñas no coinciden.', 'register-message');
     showMessage('Creando cuenta...', 'register-message');
@@ -157,10 +178,17 @@ function showMessage(msg, elementId = 'auth-message') {
 }
 
 async function initApp() {
+    // 🆕 Desbloquear audio en Android con un toque silencioso
+    if ('speechSynthesis' in window) {
+        const silent = new SpeechSynthesisUtterance('');
+        silent.volume = 0;
+        window.speechSynthesis.speak(silent);
+    }
+
     showInterface('programmer-section');
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
-    
+
     // 🆕 CARGA AUTOMÁTICA DESDE LA NUBE AL INICIAR SESIÓN
     if (navigator.onLine && supabaseClient) {
         try {
@@ -176,25 +204,22 @@ async function initApp() {
 }
 
 // ==========================================
-// 🆕 SINCRONIZACIÓN EN LA NUBE (ROBUSTA)
+// 🆕 SINCRONIZACIÓN EN LA NUBE
 // ==========================================
 async function syncPlanToCloud() {
     if (!currentUser || !supabaseClient || !navigator.onLine) {
-        console.log('⚠️ Sincronización omitida (sin usuario, sin conexión o sin cliente)');
+        console.log('⚠️ Sincronización omitida');
         return false;
     }
     try {
         const plan12 = localStorage.getItem('12_week_plan') || '{}';
         const scheduled = localStorage.getItem('scheduled_routines') || '{}';
-        
-        // 🆕 CORRECCIÓN: Se añade { onConflict: 'user_id' } para actualizar en lugar de duplicar
         const { error } = await supabaseClient.from('user_plans').upsert({
             user_id: currentUser.id,
             plan_12_weeks: JSON.parse(plan12),
             scheduled_routines: JSON.parse(scheduled),
             updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
-
         if (error) {
             console.error('❌ Error al subir a la nube:', error);
             return false;
@@ -214,52 +239,69 @@ async function loadPlanFromCloud() {
             .select('*')
             .eq('user_id', currentUser.id)
             .single();
-        
+
         if (error) {
             if (error.code === 'PGRST116') {
-                console.log('ℹ️ No hay plan en la nube aún');
+                console.log('ℹ️ No hay plan en la nube para este usuario');
                 return false;
             }
-            console.error('❌ Error nube:', error);
+            console.error('❌ Error al cargar desde la nube:', error);
             return false;
         }
-        
+
         if (data) {
-            const localScheduled = localStorage.getItem('scheduled_routines') || '{}';
+            const localScheduled = localStorage.getItem('scheduled_routines');
             const cloudData = JSON.stringify(data.scheduled_routines || {});
-            
-            // Si los datos son iguales, no hacer nada
-            if (localScheduled === cloudData) {
-                console.log('✅ Ya sincronizado');
-                return false;
-            }
-            
-            // Si no hay datos locales, descargar automáticamente
-            const hasLocal = localScheduled !== '{}';
-            let descargar = true;
-            
-            if (hasLocal) {
-                descargar = confirm(
-                    '🔄 Hay rutinas diferentes en la nube.\n\n' +
-                    '¿Descargarlas? (Se reemplazarán las locales)'
-                );
-            }
-            
-            if (descargar) {
-                localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
-                localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
-                console.log('✅ Plan descargado desde la nube');
-                return true;
+            const localData = localScheduled || '{}';
+
+            if (localData !== cloudData) {
+                const hasLocalData = localScheduled && localScheduled !== '{}';
+                let shouldOverwrite = true;
+
+                if (hasLocalData) {
+                    shouldOverwrite = confirm(
+                        '🔄 Se encontraron rutinas diferentes en la nube.\n\n' +
+                        '¿Deseas descargar las rutinas de la nube?\n' +
+                        '(Se reemplazarán las rutinas locales actuales)'
+                    );
+                }
+
+                if (shouldOverwrite) {
+                    localStorage.setItem('12_week_plan', JSON.stringify(data.plan_12_weeks || {}));
+                    localStorage.setItem('scheduled_routines', JSON.stringify(data.scheduled_routines || {}));
+                    console.log('✅ Plan descargado desde la nube');
+                    loadRoutineForDay(currentScheduledDay);
+                    return true;
+                }
+            } else {
+                console.log('✅ Los datos locales y de la nube están sincronizados');
             }
         }
         return false;
     } catch (e) {
-        console.error("Error loadPlanFromCloud:", e);
+        console.error("Error load cloud:", e);
         return false;
     }
 }
+
+async function syncNow() {
+    if (!currentUser) { alert('⚠️ Inicia sesión primero.'); return; }
+    if (!navigator.onLine) { alert('⚠️ No hay conexión a internet.'); return; }
+    if (!supabaseClient) { alert('❌ Supabase no está disponible.'); return; }
+    try {
+        const success = await syncPlanToCloud();
+        if (success) {
+            alert('✅ Sincronización completada.');
+        } else {
+            alert('⚠️ No se pudo sincronizar.');
+        }
+    } catch (e) {
+        alert('❌ Error al sincronizar: ' + e.message);
+    }
+}
+
 // ==========================================
-// 2. ASISTENTE DE VOZ (24 FRASES)
+// 2. ASISTENTE DE VOZ (PLUGIN NATIVO + FALLBACK WEB)
 // ==========================================
 const phrases = [
     "Bienvenido {name}, listo para sudar", "Vamos a romperla hoy, {name}",
@@ -275,6 +317,7 @@ const phrases = [
     "Dale duro, {name}", "La consistencia es la clave, {name}",
     "Supera tus límites, {name}", "Vamos a esculpir esa obra de arte, {name}"
 ];
+
 const motivationPhrases = [
     "Adelante, tú puedes", "No olvides hidratarte", "Mantén la concentración",
     "Cada repetición te hace más fuerte", "El esfuerzo de hoy es el éxito de mañana",
@@ -290,16 +333,50 @@ function speakRandomGreeting(name) {
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)].replace('{name}', name);
     speak(randomPhrase, 1.1);
 }
+
 function getRandomMotivationPhrase() {
     return motivationPhrases[Math.floor(Math.random() * motivationPhrases.length)];
 }
-function speak(text, rate = 1.1) {
+
+// 🆕 FUNCIÓN speak CON PLUGIN NATIVO + FALLBACK WEB
+async function speak(text, rate = 1.1) {
+    //  PRIORIDAD 1: Plugin nativo de Capacitor (siempre funciona en Android)
+    if (ttsReady && TTSPlugin) {
+        try {
+            await TTSPlugin.speak({
+                text: text,
+                lang: 'es-ES',
+                rate: rate,
+                pitch: 1.0,
+                volume: 1.0
+            });
+            console.log('🗣️ [NATIVO] Voz:', text.substring(0, 40));
+            return;
+        } catch (e) {
+            console.warn('️ Plugin nativo falló, usando fallback web:', e);
+        }
+    }
+
+    //  PRIORIDAD 2: Fallback a Web Speech API (navegador)
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'es-ES';
+        utterance.lang = 'es';
         utterance.rate = rate;
-        window.speechSynthesis.speak(utterance);
+        utterance.volume = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const spanishVoice = voices.find(v => v.lang.startsWith('es'));
+        if (spanishVoice) {
+            utterance.voice = spanishVoice;
+        }
+
+        setTimeout(() => {
+            window.speechSynthesis.speak(utterance);
+        }, 100);
+        console.log('️ [WEB] Voz:', text.substring(0, 40));
+    } else {
+        console.warn('⚠️ Ningún sistema de voz disponible');
     }
 }
 
@@ -319,9 +396,8 @@ function applyTempoPreset(ecc, pb, con, pt) {
 function addExercise() {
     const nameEl = document.getElementById('ex-name');
     const qtyEl = document.getElementById('ex-quantity');
-    if (!nameEl || !qtyEl) return alert("⚠️ Error de carga. Recarga la página (Ctrl + F5).");
+    if (!nameEl || !qtyEl) return alert("⚠️ Error de carga. Recarga la página.");
 
-    // 🆕 PARSEO INTELIGENTE PARA "X" (EXPLOSIVO)
     let conInput = document.getElementById('tempo-con').value.trim().toUpperCase();
     let isExplosive = (conInput === 'X');
     let conVal = isExplosive ? 1 : (parseInt(conInput) || 0);
@@ -342,6 +418,7 @@ function addExercise() {
         },
         rest: { set: parseInt(document.getElementById('rest-set').value) || 0 }
     };
+
     if (!ex.name) return alert('Ingresa un nombre de ejercicio');
 
     if (editIndex >= 0) {
@@ -401,6 +478,7 @@ function calculateTotalTime() {
     let totalSeconds = 40;
     const restExMinutes = parseInt(document.getElementById('rest-ex-global').value) || 0;
     const restExSeconds = restExMinutes * 60;
+
     currentRoutine.exercises.forEach((ex, idx) => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
         const repCycle = ex.tempo.ecc + ex.tempo.pb + ex.tempo.con + ex.tempo.pt;
@@ -414,6 +492,7 @@ function calculateTotalTime() {
         }
         if (idx < currentRoutine.exercises.length - 1) totalSeconds += restExSeconds;
     });
+
     currentRoutine.totalTime = totalSeconds;
     currentRoutine.restBetweenExercises = restExSeconds;
     document.getElementById('total-time-display').innerText = formatTime(totalSeconds);
@@ -432,13 +511,7 @@ function renderExerciseList() {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
         const note = isUnilateral ? `(${ex.reps} Izq → 8s → ${ex.reps} Der) x${ex.sets}` : '';
         const conDisplay = ex.tempo.isExplosive ? 'X' : ex.tempo.con;
-        return `<li style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #ddd;">
-            <div><strong>${i+1}. ${ex.name}</strong> ${note}<br>
-            <small>${ex.sets}x${ex.reps} | ${ex.weight||'Sin peso'} | Tempo: ${ex.tempo.ecc}-${ex.tempo.pb}-${conDisplay}-${ex.tempo.pt}</small></div>
-            <div>
-                <button onclick="editExercise(${i})" style="width:auto;padding:5px 10px;font-size:12px;margin:0 5px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button>
-                <button onclick="deleteExercise(${i})" style="width:auto;padding:5px 10px;font-size:12px;margin:0;background:#ff4444;color:#fff;border:none;border-radius:5px;cursor:pointer;">🗑️</button>
-            </div></li>`;
+        return `<li style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #ddd;"> <div><strong>${i+1}. ${ex.name}</strong> ${note}<br> <small>${ex.sets}x${ex.reps} | ${ex.weight||'Sin peso'} | Tempo: ${ex.tempo.ecc}-${ex.tempo.pb}-${conDisplay}-${ex.tempo.pt}</small></div> <div> <button onclick="editExercise(${i})" style="width:auto;padding:5px 10px;font-size:12px;margin:0 5px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteExercise(${i})" style="width:auto;padding:5px 10px;font-size:12px;margin:0;background:#ff4444;color:#fff;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div></li>`;
     }).join('');
 }
 
@@ -451,7 +524,6 @@ function saveRoutineToStorage() {
         savedAt: new Date().toISOString()
     };
     localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines));
-    // Sincronizar en segundo plano (no bloquea la UI)
     syncPlanToCloud().catch(e => console.error('Sync falló:', e));
 }
 
@@ -481,32 +553,17 @@ function renderScheduledRoutines() {
     const allRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
     const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     let html = '';
+
     days.forEach(day => {
         const routine = allRoutines[day];
         const isToday = day === getCurrentDayName();
         const todayBadge = isToday ? ' <span style="background:#C23D55;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">HOY</span>' : '';
+
         if (routine) {
             const exercisesList = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;">
-                    <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3>
-                    <div style="display:flex;gap:5px;">
-                        <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button>
-                        <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button>
-                        <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button>
-                    </div>
-                </div>
-                <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p>
-                <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p>
-            </div>`;
+            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
         } else {
-            html += `<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid #ccc;opacity:0.7;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <h3 style="margin:0;color:#999;">${day}${todayBadge}</h3>
-                    <button onclick="createRoutineForDay('${day}')" style="padding:5px 12px;font-size:12px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;">+ Crear</button>
-                </div>
-                <p style="margin:5px 0;font-size:12px;color:#999;">Sin rutina programada</p>
-            </div>`;
+            html += `<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid #ccc;opacity:0.7;"> <div style="display:flex;justify-content:space-between;align-items:center;"> <h3 style="margin:0;color:#999;">${day}${todayBadge}</h3> <button onclick="createRoutineForDay('${day}')" style="padding:5px 12px;font-size:12px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;">+ Crear</button> </div> <p style="margin:5px 0;font-size:12px;color:#999;">Sin rutina programada</p> </div>`;
         }
     });
     container.innerHTML = html;
@@ -568,7 +625,7 @@ function deleteScheduledRoutine(day) {
 }
 
 // ==========================================
-// 🆕 IMPORTACIÓN CSV Y PLAN 12 SEMANAS (CORREGIDO)
+// 🆕 IMPORTACIÓN CSV Y PLAN 12 SEMANAS
 // ==========================================
 function downloadCSVTemplate() {
     const csv = "Semana,Dia,Ejercicio,Series,Reps,Peso,Equipo,Cantidad,Tempo_Ecc,Tempo_PB,Tempo_Con,Tempo_PT,Descanso_Serie,Grupo,Descanso_Global\n1,Lunes,Press Banca,4,8,60kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2\n1,Lunes,Remo,4,8,50kg,Mancuernas,2,3,1,1,1,90,Tren Superior,2";
@@ -581,10 +638,9 @@ function downloadCSVTemplate() {
     document.body.removeChild(link);
 }
 
-// 🆕 Función auxiliar para limpiar números (quita "s", "kg", espacios)
 function parseNum(val, fallback = 0) {
     if (val === undefined || val === null || val === '') return fallback;
-    const cleaned = String(val).replace(/[^\d.-]/g, ''); // quita todo excepto dígitos, . y -
+    const cleaned = String(val).replace(/[^\d.-]/g, '');
     const n = parseFloat(cleaned);
     return isNaN(n) ? fallback : n;
 }
@@ -593,10 +649,7 @@ function handleCSVImport(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // 🛡️ Validación de tipo de archivo
-    const isValidType = file.name.toLowerCase().endsWith('.csv') || 
-                        file.type === 'text/csv' || 
-                        file.type === 'application/vnd.ms-excel';
+    const isValidType = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/vnd.ms-excel';
     if (!isValidType) {
         alert('⚠️ Archivo no válido. Selecciona un archivo .csv');
         event.target.value = '';
@@ -607,7 +660,6 @@ function handleCSVImport(event) {
     reader.onload = async function(e) {
         try {
             const text = e.target.result;
-            // 🛡️ Detectar y eliminar BOM (Byte Order Mark) de archivos Windows
             const cleanText = text.replace(/^\uFEFF/, '');
             const rows = cleanText.split(/\r?\n/).filter(r => r.trim() !== '');
 
@@ -617,12 +669,8 @@ function handleCSVImport(event) {
                 return;
             }
 
-            // 🛡️ Parsear cabeceras limpiando espacios y caracteres raros
-            const headers = rows[0].split(',').map(h => 
-                h.trim().toLowerCase().replace(/[^\wáéíóúñ]/g, '')
-            );
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/[^\wáéíóúñ]/g, ''));
 
-            // Validar que existan las columnas mínimas
             const requiredCols = ['semana', 'dia', 'ejercicio'];
             const missingCols = requiredCols.filter(c => !headers.includes(c));
             if (missingCols.length > 0) {
@@ -644,7 +692,6 @@ function handleCSVImport(event) {
                     if (h) rowObj[h] = cols[idx] || '';
                 });
 
-                // 🛡️ Validar nombre de ejercicio
                 if (!rowObj.ejercicio || rowObj.ejercicio.trim() === '') {
                     invalidRows.push(`Fila ${i + 1}: ejercicio vacío`);
                     continue;
@@ -653,7 +700,6 @@ function handleCSVImport(event) {
                 const semana = String(parseNum(rowObj.semana, 1));
                 const dia = (rowObj.dia || 'Lunes').trim();
 
-                // Validar día
                 const diasValidos = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
                 if (!diasValidos.includes(dia)) {
                     invalidRows.push(`Fila ${i + 1}: día inválido "${dia}"`);
@@ -669,7 +715,6 @@ function handleCSVImport(event) {
                     };
                 }
 
-                // 🆕 Parseo robusto de tempo (acepta "X", números, vacío)
                 let conVal = rowObj.tempo_con ? String(rowObj.tempo_con).trim().toUpperCase() : '0';
                 let isExp = (conVal === 'X');
 
@@ -698,7 +743,6 @@ function handleCSVImport(event) {
                 return;
             }
 
-            // ✅ Cargar rutinas existentes y hacer MERGE
             const currentRoutines = JSON.parse(localStorage.getItem('scheduled_routines') || '{}');
             const overwrittenDays = [];
             const preservedDays = [];
@@ -736,10 +780,9 @@ function handleCSVImport(event) {
                 });
             }
 
-            // ✅ Resumen y confirmación
             let summary = `📋 Resumen de importación:\n\n`;
             summary += `✅ Ejercicios válidos: ${validCount}\n`;
-            summary += `📅 Semanas detectadas: ${Object.keys(planData).join(', ')}\n`;
+            summary += ` Semanas detectadas: ${Object.keys(planData).join(', ')}\n`;
             summary += `🆕 Días nuevos: ${importedDays.join(', ') || 'Ninguno'}\n`;
             if (overwrittenDays.length > 0) {
                 summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
@@ -753,17 +796,14 @@ function handleCSVImport(event) {
             summary += `\n\n¿Continuar?`;
 
             if (!confirm(summary)) {
-                alert('❌ Importación cancelada.');
+                alert(' Importación cancelada.');
                 event.target.value = '';
                 return;
             }
 
-            // ✅ Guardar
             localStorage.setItem('12_week_plan', JSON.stringify(planData));
             localStorage.setItem('scheduled_routines', JSON.stringify(currentRoutines));
-            
             await syncPlanToCloud();
-            
             alert(`✅ ¡Importación exitosa!\n\n${validCount} ejercicios de ${Object.keys(planData).length} semana(s) cargados.`);
             showScheduledRoutines();
         } catch (err) {
@@ -772,23 +812,20 @@ function handleCSVImport(event) {
         }
     };
 
-    reader.onerror = function() { 
-        alert('❌ No se pudo leer el archivo.'); 
-    };
-    
-    reader.readAsText(file, 'UTF-8'); // 🆕 Forzar UTF-8 para tildes
-    event.target.value = ''; // 🆕 Limpiar input para poder reimportar el mismo archivo
+    reader.onerror = function() { alert('❌ No se pudo leer el archivo.'); };
+    reader.readAsText(file, 'UTF-8');
+    event.target.value = '';
 }
 
 function show12WeekPlan() {
     const section = document.getElementById('twelve-week-section');
     if (!section) {
-        alert('⚠️ La sección de Plan 12 Semanas no existe en el HTML.');
+        alert('️ La sección de Plan 12 Semanas no existe en el HTML.');
         return;
     }
     showInterface('twelve-week-section');
     const planData = JSON.parse(localStorage.getItem('12_week_plan') || '{}');
-    const container = document.getElementById('twelve-week-content'); // ✅ SIN ESPACIOS
+    const container = document.getElementById('twelve-week-content');
     if (!container) return;
 
     if (Object.keys(planData).length === 0) {
@@ -796,19 +833,19 @@ function show12WeekPlan() {
         return;
     }
 
-    const startDate = new Date(); 
+    const startDate = new Date();
     startDate.setHours(0,0,0,0);
     const daysMap = { 'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sábado':6,'Domingo':0 };
-    let html = ''; // ✅ SIN ESPACIOS
+    let html = '';
 
     Object.keys(planData)
-        .sort((a,b) => parseInt(a) - parseInt(b)) // ✅ SIN ESPACIOS
-        .forEach(weekNum => { // ✅ SIN ESPACIOS
+        .sort((a,b) => parseInt(a) - parseInt(b))
+        .forEach(weekNum => {
             const weekOffset = parseInt(weekNum) - 1;
             html += `<div style="margin-bottom:20px;border:1px solid #ddd;border-radius:10px;overflow:hidden;">
                 <div style="background:#0C047D;color:white;padding:10px;font-weight:bold;">Semana ${weekNum}</div>
                 <div style="padding:10px;">`;
-            
+
             Object.keys(planData[weekNum]).forEach(dayName => {
                 const routine = planData[weekNum][dayName];
                 const dayIndex = daysMap[dayName];
@@ -818,7 +855,7 @@ function show12WeekPlan() {
                 exactDate.setDate(startDate.getDate() + daysToAdd);
                 const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
                 const exNames = routine.exercises.map(e => e.name).join(', ');
-                
+
                 html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <strong>${dayName}</strong>
@@ -853,6 +890,7 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     const now = audioCtx.currentTime;
+
     if (type === 'metronome') {
         const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
         osc.connect(gain); gain.connect(audioCtx.destination);
@@ -914,6 +952,9 @@ function playTripleBeep(time) {
     }
 }
 
+// ==========================================
+// 🆕 buildTimerQueue CON PESO DEL SIGUIENTE EJERCICIO
+// ==========================================
 function buildTimerQueue() {
     queue = [{ phase: 'Preparación', duration: 40, action: 'prep' }];
     const totalExercises = currentRoutine.exercises.length;
@@ -961,8 +1002,19 @@ function buildTimerQueue() {
             }
             if (s < ex.sets) queue.push({ phase: 'Descanso entre series', duration: ex.rest.set, action: 'rest', exerciseName: ex.name, setNumber: s, totalSets: ex.sets });
         }
+        // 🆕 Descanso entre ejercicios con peso del siguiente
         if (exIndex < totalExercises - 1 && restExSeconds > 0) {
-            queue.push({ phase: 'Descanso entre ejercicios', duration: restExSeconds, action: 'rest-exercise', exerciseName: ex.name, nextExName, isLastTwoExercises });
+            const nextEx = currentRoutine.exercises[exIndex + 1];
+            const nextExWeight = nextEx ? (nextEx.weight || '') : '';
+            queue.push({
+                phase: 'Descanso entre ejercicios',
+                duration: restExSeconds,
+                action: 'rest-exercise',
+                exerciseName: ex.name,
+                nextExName,
+                nextExWeight,  // 🆕 Peso del próximo ejercicio
+                isLastTwoExercises
+            });
         }
     });
     queue.push({ phase: '¡Rutina Finalizada!', duration: 5, action: 'finish' });
@@ -974,7 +1026,6 @@ function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
 
-    // 🛡️ Blindaje: saltar fases de 0 segundos
     if (item.duration <= 0) {
         currentQueueIndex++;
         if (currentQueueIndex < queue.length) loadNextPhase();
@@ -985,13 +1036,11 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // 🆕 LÓGICA ASIMÉTRICA: Detectar tempo ultra-rápido
     const isShort = item.duration <= 1;
 
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     }
-    // 🏋️ EXCÉNTRICO (Voz + Sonido)
     else if (item.action === 'ecc' && item.duration >= 1) {
         playSound('eccentric');
         if (isShort) {
@@ -1002,26 +1051,21 @@ function loadNextPhase() {
             speak("Excéntrico, inhala", 1.2);
         }
     }
-    // 🧘 PAUSA ABAJO (SOLO BEEP, sin voz)
     else if (item.action === 'pause-bottom' && item.duration >= 1) {
         playSound('pause-bottom');
     }
-    // 🏋️ CONCÉNTRICO (Voz + Sonido)
     else if (item.action === 'con' && item.duration >= 1) {
         playSound('concentric');
         if (isShort) speak("Empuja", 1.5);
         else speak("Concéntrico, exhala", 1.2);
     }
-    // ⚡ CONCÉNTRICO EXPLOSIVO
     else if (item.action === 'con-explosive' && item.duration >= 1) {
         playSound('con-explosive');
         speak("¡Empuja!", 1.5);
     }
-    // 🧘 PAUSA ARRIBA (SOLO BEEP, sin voz)
     else if (item.action === 'pause-top' && item.duration >= 1) {
         playSound('pause-top');
     }
-    // 🔄 DESCANSO ENTRE EJERCICIOS
     else if (item.action === 'rest-exercise') {
         playSound('transition');
         if (item.isLastTwoExercises) {
@@ -1030,11 +1074,9 @@ function loadNextPhase() {
             speak("Siguiente: " + item.nextExName, 1.2);
         }
     }
-    // 🛑 DESCANSO ENTRE SERIES
     else if (item.action === 'rest') {
         speak("Descanso", 1.2);
     }
-    // 🏁 FINALIZADO
     else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
         saveHistory();
@@ -1046,9 +1088,20 @@ function loadNextPhase() {
     }
 }
 
+// ==========================================
+//  updateTimerUI CON SIGUIENTE EJERCICIO Y PESO
+// ==========================================
 function updateTimerUI(item) {
     let title = item.phase;
-    if (item.exerciseName) {
+
+    // 🆕 Si es descanso entre ejercicios, mostrar el PRÓXIMO ejercicio y su peso
+    if (item.action === 'rest-exercise') {
+        title = `Siguiente: ${item.nextExName}`;
+        if (item.nextExWeight) {
+            title += ` | Peso: ${item.nextExWeight}`;
+        }
+    }
+    else if (item.exerciseName) {
         title = item.exerciseName;
         if (item.isUnilateral && item.sideLabel) {
             title += ` - S${item.setNumber}/${item.totalSets} - ${item.sideLabel} - R${item.repNumber}/${item.totalReps}`;
@@ -1056,17 +1109,18 @@ function updateTimerUI(item) {
             title += ` - S${item.setNumber}/${item.totalSets} | R${item.repNumber}/${item.totalReps}`;
         }
     }
+
     document.getElementById('current-phase-title').innerText = title;
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
 
     const circle = document.querySelector('.progress-ring__circle');
     if (!circle) return;
+
     const radius = circle.r.baseVal.value;
     const circumference = radius * 2 * Math.PI;
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
     circle.style.strokeDashoffset = circumference - (timeLeftInPhase / item.duration) * circumference;
 
-    // 🆕 CAMBIO DE COLOR SEGÚN FASE
     let color = '#ffffff';
     if (item.action === 'ecc') color = '#ff4444';
     else if (item.action === 'pause-bottom') color = '#ffc107';
@@ -1076,6 +1130,9 @@ function updateTimerUI(item) {
     circle.style.stroke = color;
 }
 
+// ==========================================
+// 🆕 tick CON OMISIÓN DE "ASUME TU POSICIÓN" EN TRANSICIONES
+// ==========================================
 function tick() {
     if (isPaused) return;
     const currentItem = queue[currentQueueIndex];
@@ -1084,13 +1141,18 @@ function tick() {
 
     if (isRest) {
         if (timeLeftInPhase === 20) speak("20 segundos", 1.2);
-        if (timeLeftInPhase === 8) speak("Asume tu posición", 1.2);
+        // 🆕 Omitir "Asume tu posición" durante transiciones unilaterales (izq → der)
+        if (timeLeftInPhase === 8 && currentItem.action !== 'rest-trans') {
+            speak("Asume tu posición", 1.2);
+        }
         if (timeLeftInPhase <= 5 && timeLeftInPhase > 0) playSound('metronome');
         if (timeLeftInPhase <= 3 && timeLeftInPhase > 0) speak(timeLeftInPhase.toString(), 1.2);
     }
+
     if (isTempo && currentItem.duration >= 3 && timeLeftInPhase < currentItem.duration && timeLeftInPhase > 0) {
         playSound('metronome');
     }
+
     if (currentItem.action === 'rest-trans' && timeLeftInPhase === 7) {
         speak("Cambiar a " + currentItem.nextSide, 1.3);
     }
@@ -1227,12 +1289,14 @@ async function loadHistory() {
     let history = JSON.parse(localStorage.getItem('gym_history') || '[]');
     history = history.filter(h => new Date(h.date) >= sixWeeksAgo);
     localStorage.setItem('gym_history', JSON.stringify(history));
+
     if (navigator.onLine && currentUser && supabaseClient) {
         try {
             const { data } = await supabaseClient.from('routines').select('*').eq('user_id', currentUser.id).order('date', { ascending: false });
             if (data) history = [...data, ...history].filter((v, i, a) => a.findIndex(t => (t.date === v.date && t.body_part === v.body_part && JSON.stringify(t.exercises) === JSON.stringify(v.exercises))) === i);
         } catch (e) { console.error('Error cargando historial:', e); }
     }
+
     history.sort((a, b) => new Date(b.date) - new Date(a.date));
     allHistoryData = history;
     renderHistoryStats(history);
@@ -1245,13 +1309,8 @@ function renderHistoryStats(history) {
     const totalTime = history.reduce((sum, r) => sum + (r.total_time || 0), 0);
     const streak = calculateStreak(history);
     const favoriteDay = getFavoriteDay(history);
-    container.innerHTML = `
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div>
-            <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div>
-            <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div>
-            <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div>
-        </div>`;
+
+    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
 }
 
 function calculateStreak(history) {
@@ -1281,6 +1340,7 @@ function applyHistoryFilters() {
     const search = document.getElementById('history-search').value.toLowerCase();
     const filterDay = document.getElementById('filter-day').value;
     const filterType = document.getElementById('filter-type').value;
+
     let filtered = allHistoryData.filter(item => {
         const matchSearch = !search || item.exercises.some(e => e.name.toLowerCase().includes(search));
         const matchDay = !filterDay || item.day === filterDay;
@@ -1296,26 +1356,13 @@ function renderHistoryList(history) {
         container.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No hay registros.</p>';
         return;
     }
+
     container.innerHTML = history.map((item) => {
         const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '🦵' : '🏃';
         const exercisesList = item.exercises.map(e => e.name).join(', ');
         const unilateralCount = item.exercises.filter(e => e.equipment !== 'Sin equipo' && e.quantity === 1).length;
-        return `
-            <div class="history-item">
-                <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button>
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-                    <span style="font-size:28px;">${typeIcon}</span>
-                    <div style="flex:1;">
-                        <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3>
-                        <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p>
-                    </div>
-                </div>
-                <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;">
-                    <p style="margin:0;font-size:13px;"><strong>⏱️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p>
-                    <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p>
-                </div>
-                <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button>
-            </div>`;
+
+        return `<div class="history-item"> <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button> <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"> <span style="font-size:28px;">${typeIcon}</span> <div style="flex:1;"> <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3> <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p> </div> </div> <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;"> <p style="margin:0;font-size:13px;"><strong>⏱️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p> <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p> </div> <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button> </div>`;
     }).join('');
 }
 
