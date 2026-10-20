@@ -14,7 +14,7 @@ try {
         console.warn('⚠️ Plugin TTS no registrado. Usando fallback web.');
     }
 } catch (e) {
-    console.warn('️ Error cargando plugin TTS:', e);
+    console.warn('⚠️ Error cargando plugin TTS:', e);
 }
 
 // ==========================================
@@ -330,7 +330,7 @@ function getRandomMotivationPhrase() {
     return motivationPhrases[Math.floor(Math.random() * motivationPhrases.length)];
 }
 
-// 🆕 FUNCIÓN speak CON PLUGIN NATIVO + FALLBACK WEB
+//  FUNCIÓN speak CON PLUGIN NATIVO + FALLBACK WEB
 async function speak(text, rate = 1.1) {
     // 🥇 PRIORIDAD 1: Plugin nativo de Capacitor
     if (ttsReady && TTSPlugin) {
@@ -349,7 +349,7 @@ async function speak(text, rate = 1.1) {
         }
     }
 
-    // 🥈 PRIORIDAD 2: Fallback a Web Speech API
+    //  PRIORIDAD 2: Fallback a Web Speech API
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
@@ -388,7 +388,7 @@ function applyTempoPreset(ecc, pb, con, pt) {
 function addExercise() {
     const nameEl = document.getElementById('ex-name');
     const qtyEl = document.getElementById('ex-quantity');
-    if (!nameEl || !qtyEl) return alert("️ Error de carga. Recarga la página.");
+    if (!nameEl || !qtyEl) return alert("⚠️ Error de carga. Recarga la página.");
 
     let conInput = document.getElementById('tempo-con').value.trim().toUpperCase();
     let isExplosive = (conInput === 'X');
@@ -1015,8 +1015,7 @@ function buildTimerQueue() {
 }
 
 // ==========================================
-// 🆕 loadNextPhase CON REGLA DE VOZ SIMPLIFICADA
-// Regla: tempo 1s → "excén"/"concén" | tempo 2s+ → "excéntrico"/"concéntrico"
+// 🆕 loadNextPhase CON REGLA DE VOZ SIMPLIFICADA (SIN INHALA/EXHALA)
 // ==========================================
 function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
@@ -1032,38 +1031,38 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    // 🆕 REGLA DE VOZ SIMPLIFICADA
-    const isShort = item.duration <= 1; // Tempo corto (1s)
+    // 🆕 REGLA DE VOZ SIMPLIFICADA (sin "inhala/exhala")
+    const isShort = item.duration <= 1;
     const eccFrase = isShort ? "excén" : "excéntrico";
     const conFrase = isShort ? "concén" : "concéntrico";
 
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     }
-    // 🏋️ EXCÉNTRICO
+    // 🏋️ EXCÉNTRICO (sin "inhala")
     else if (item.action === 'ecc' && item.duration >= 1) {
         playSound('eccentric');
         if (item.isUnilateral && item.isFirstPhaseOfRep) {
-            speak(item.sideLabel + ", " + eccFrase + ", inhala", 1.3);
+            speak(item.sideLabel + ", " + eccFrase, 1.3);
         } else {
-            speak(eccFrase + ", inhala", 1.3);
+            speak(eccFrase, 1.3);
         }
     }
     // 🧘 PAUSA ABAJO (solo beep)
     else if (item.action === 'pause-bottom' && item.duration >= 1) {
         playSound('pause-bottom');
     }
-    // 🏋️ CONCÉNTRICO
+    // ️ CONCÉNTRICO (sin "exhala")
     else if (item.action === 'con' && item.duration >= 1) {
         playSound('concentric');
-        speak(conFrase + ", exhala", 1.3);
+        speak(conFrase, 1.3);
     }
     // ⚡ CONCÉNTRICO EXPLOSIVO
     else if (item.action === 'con-explosive' && item.duration >= 1) {
         playSound('con-explosive');
         speak("¡Empuja!", 1.5);
     }
-    //  PAUSA ARRIBA (solo beep)
+    // 🧘 PAUSA ARRIBA (solo beep)
     else if (item.action === 'pause-top' && item.duration >= 1) {
         playSound('pause-top');
     }
@@ -1098,7 +1097,6 @@ function loadNextPhase() {
 function updateTimerUI(item) {
     let title = item.phase;
 
-    // 🆕 Si es descanso entre ejercicios, mostrar el PRÓXIMO ejercicio y su peso
     if (item.action === 'rest-exercise') {
         title = `Siguiente: ${item.nextExName}`;
         if (item.nextExWeight) {
@@ -1145,7 +1143,6 @@ function tick() {
 
     if (isRest) {
         if (timeLeftInPhase === 20) speak("20 segundos", 1.2);
-        // 🆕 Omitir "Asume tu posición" durante transiciones unilaterales (izq → der)
         if (timeLeftInPhase === 8 && currentItem.action !== 'rest-trans') {
             speak("Asume tu posición", 1.2);
         }
@@ -1362,7 +1359,7 @@ function renderHistoryList(history) {
     }
 
     container.innerHTML = history.map((item) => {
-        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '🦵' : '🏃';
+        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '' : '🏃';
         const exercisesList = item.exercises.map(e => e.name).join(', ');
         const unilateralCount = item.exercises.filter(e => e.equipment !== 'Sin equipo' && e.quantity === 1).length;
 
