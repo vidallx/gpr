@@ -11,10 +11,10 @@ try {
         ttsReady = true;
         console.log('✅ Plugin TTS nativo cargado vía Capacitor.Plugins');
     } else {
-        console.warn('️ Plugin TTS no registrado. Usando fallback web.');
+        console.warn('⚠️ Plugin TTS no registrado. Usando fallback web.');
     }
 } catch (e) {
-    console.warn('⚠️ Error cargando plugin TTS:', e);
+    console.warn('️ Error cargando plugin TTS:', e);
 }
 
 // ==========================================
@@ -32,7 +32,7 @@ try {
         console.error('❌ La librería de Supabase no está cargada. Verifica el CDN en index.html');
     }
 } catch (e) {
-    console.error('❌ Error al inicializar Supabase:', e);
+    console.error(' Error al inicializar Supabase:', e);
 }
 
 // ==========================================
@@ -151,9 +151,9 @@ async function register() {
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
     const passwordConfirm = document.getElementById('register-password-confirm').value;
-    if (!name) return showMessage('️ Ingresa tu nombre.', 'register-message');
-    if (!email || !password) return showMessage('️ Completa todos los campos.', 'register-message');
-    if (password.length < 6) return showMessage('⚠️ Contraseña mín 6 caracteres.', 'register-message');
+    if (!name) return showMessage('⚠️ Ingresa tu nombre.', 'register-message');
+    if (!email || !password) return showMessage('⚠️ Completa todos los campos.', 'register-message');
+    if (password.length < 6) return showMessage('️ Contraseña mín 6 caracteres.', 'register-message');
     if (password !== passwordConfirm) return showMessage('⚠️ Contraseñas no coinciden.', 'register-message');
     showMessage('Creando cuenta...', 'register-message');
     const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name } } });
@@ -178,18 +178,10 @@ function showMessage(msg, elementId = 'auth-message') {
 }
 
 async function initApp() {
-    // 🆕 Desbloquear audio en Android con un toque silencioso
-    if ('speechSynthesis' in window) {
-        const silent = new SpeechSynthesisUtterance('');
-        silent.volume = 0;
-        window.speechSynthesis.speak(silent);
-    }
-
     showInterface('programmer-section');
     const userName = currentUser.user_metadata?.full_name || (currentUser.email ? currentUser.email.split('@')[0] : 'Atleta');
     speakRandomGreeting(userName);
 
-    // 🆕 CARGA AUTOMÁTICA DESDE LA NUBE AL INICIAR SESIÓN
     if (navigator.onLine && supabaseClient) {
         try {
             const loaded = await loadPlanFromCloud();
@@ -340,7 +332,7 @@ function getRandomMotivationPhrase() {
 
 // 🆕 FUNCIÓN speak CON PLUGIN NATIVO + FALLBACK WEB
 async function speak(text, rate = 1.1) {
-    //  PRIORIDAD 1: Plugin nativo de Capacitor (siempre funciona en Android)
+    // 🥇 PRIORIDAD 1: Plugin nativo de Capacitor
     if (ttsReady && TTSPlugin) {
         try {
             await TTSPlugin.speak({
@@ -353,11 +345,11 @@ async function speak(text, rate = 1.1) {
             console.log('🗣️ [NATIVO] Voz:', text.substring(0, 40));
             return;
         } catch (e) {
-            console.warn('️ Plugin nativo falló, usando fallback web:', e);
+            console.warn('⚠️ Plugin nativo falló, usando fallback web:', e);
         }
     }
 
-    //  PRIORIDAD 2: Fallback a Web Speech API (navegador)
+    // 🥈 PRIORIDAD 2: Fallback a Web Speech API
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
@@ -374,7 +366,7 @@ async function speak(text, rate = 1.1) {
         setTimeout(() => {
             window.speechSynthesis.speak(utterance);
         }, 100);
-        console.log('️ [WEB] Voz:', text.substring(0, 40));
+        console.log('🗣️ [WEB] Voz:', text.substring(0, 40));
     } else {
         console.warn('⚠️ Ningún sistema de voz disponible');
     }
@@ -396,7 +388,7 @@ function applyTempoPreset(ecc, pb, con, pt) {
 function addExercise() {
     const nameEl = document.getElementById('ex-name');
     const qtyEl = document.getElementById('ex-quantity');
-    if (!nameEl || !qtyEl) return alert("⚠️ Error de carga. Recarga la página.");
+    if (!nameEl || !qtyEl) return alert("️ Error de carga. Recarga la página.");
 
     let conInput = document.getElementById('tempo-con').value.trim().toUpperCase();
     let isExplosive = (conInput === 'X');
@@ -561,7 +553,7 @@ function renderScheduledRoutines() {
 
         if (routine) {
             const exercisesList = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
+            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
         } else {
             html += `<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid #ccc;opacity:0.7;"> <div style="display:flex;justify-content:space-between;align-items:center;"> <h3 style="margin:0;color:#999;">${day}${todayBadge}</h3> <button onclick="createRoutineForDay('${day}')" style="padding:5px 12px;font-size:12px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;">+ Crear</button> </div> <p style="margin:5px 0;font-size:12px;color:#999;">Sin rutina programada</p> </div>`;
         }
@@ -782,7 +774,7 @@ function handleCSVImport(event) {
 
             let summary = `📋 Resumen de importación:\n\n`;
             summary += `✅ Ejercicios válidos: ${validCount}\n`;
-            summary += ` Semanas detectadas: ${Object.keys(planData).join(', ')}\n`;
+            summary += `📅 Semanas detectadas: ${Object.keys(planData).join(', ')}\n`;
             summary += `🆕 Días nuevos: ${importedDays.join(', ') || 'Ninguno'}\n`;
             if (overwrittenDays.length > 0) {
                 summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
@@ -796,7 +788,7 @@ function handleCSVImport(event) {
             summary += `\n\n¿Continuar?`;
 
             if (!confirm(summary)) {
-                alert(' Importación cancelada.');
+                alert('❌ Importación cancelada.');
                 event.target.value = '';
                 return;
             }
@@ -820,7 +812,7 @@ function handleCSVImport(event) {
 function show12WeekPlan() {
     const section = document.getElementById('twelve-week-section');
     if (!section) {
-        alert('️ La sección de Plan 12 Semanas no existe en el HTML.');
+        alert('⚠️ La sección de Plan 12 Semanas no existe en el HTML.');
         return;
     }
     showInterface('twelve-week-section');
@@ -1012,7 +1004,7 @@ function buildTimerQueue() {
                 action: 'rest-exercise',
                 exerciseName: ex.name,
                 nextExName,
-                nextExWeight,  // 🆕 Peso del próximo ejercicio
+                nextExWeight,
                 isLastTwoExercises
             });
         }
@@ -1022,6 +1014,10 @@ function buildTimerQueue() {
     loadNextPhase();
 }
 
+// ==========================================
+// 🆕 loadNextPhase CON REGLA DE VOZ SIMPLIFICADA
+// Regla: tempo 1s → "excén"/"concén" | tempo 2s+ → "excéntrico"/"concéntrico"
+// ==========================================
 function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
@@ -1036,36 +1032,42 @@ function loadNextPhase() {
     timeLeftInPhase = item.duration;
     updateTimerUI(item);
 
-    const isShort = item.duration <= 1;
+    // 🆕 REGLA DE VOZ SIMPLIFICADA
+    const isShort = item.duration <= 1; // Tempo corto (1s)
+    const eccFrase = isShort ? "excén" : "excéntrico";
+    const conFrase = isShort ? "concén" : "concéntrico";
 
     if (item.action === 'prep' && timeLeftInPhase === 40) {
         speak("Comienza la preparación", 1.1);
     }
+    // 🏋️ EXCÉNTRICO
     else if (item.action === 'ecc' && item.duration >= 1) {
         playSound('eccentric');
-        if (isShort) {
-            speak("Baja", 1.5);
-        } else if (item.isUnilateral && item.isFirstPhaseOfRep) {
-            speak(item.sideLabel + ", excéntrico, inhala", 1.2);
+        if (item.isUnilateral && item.isFirstPhaseOfRep) {
+            speak(item.sideLabel + ", " + eccFrase + ", inhala", 1.3);
         } else {
-            speak("Excéntrico, inhala", 1.2);
+            speak(eccFrase + ", inhala", 1.3);
         }
     }
+    // 🧘 PAUSA ABAJO (solo beep)
     else if (item.action === 'pause-bottom' && item.duration >= 1) {
         playSound('pause-bottom');
     }
+    // 🏋️ CONCÉNTRICO
     else if (item.action === 'con' && item.duration >= 1) {
         playSound('concentric');
-        if (isShort) speak("Empuja", 1.5);
-        else speak("Concéntrico, exhala", 1.2);
+        speak(conFrase + ", exhala", 1.3);
     }
+    // ⚡ CONCÉNTRICO EXPLOSIVO
     else if (item.action === 'con-explosive' && item.duration >= 1) {
         playSound('con-explosive');
         speak("¡Empuja!", 1.5);
     }
+    //  PAUSA ARRIBA (solo beep)
     else if (item.action === 'pause-top' && item.duration >= 1) {
         playSound('pause-top');
     }
+    // 🔄 DESCANSO ENTRE EJERCICIOS
     else if (item.action === 'rest-exercise') {
         playSound('transition');
         if (item.isLastTwoExercises) {
@@ -1074,9 +1076,11 @@ function loadNextPhase() {
             speak("Siguiente: " + item.nextExName, 1.2);
         }
     }
+    // 🛑 DESCANSO ENTRE SERIES
     else if (item.action === 'rest') {
         speak("Descanso", 1.2);
     }
+    // 🏁 FINALIZADO
     else if (item.action === 'finish') {
         speak("Felicidades, has completado tu rutina", 1.1);
         saveHistory();
@@ -1089,7 +1093,7 @@ function loadNextPhase() {
 }
 
 // ==========================================
-//  updateTimerUI CON SIGUIENTE EJERCICIO Y PESO
+// 🆕 updateTimerUI CON SIGUIENTE EJERCICIO Y PESO
 // ==========================================
 function updateTimerUI(item) {
     let title = item.phase;
@@ -1223,7 +1227,7 @@ function checkPausedRoutine() {
     const hoursPassed = (Date.now() - state.timestamp) / (1000 * 60 * 60);
     if (hoursPassed >= 14) {
         localStorage.removeItem('paused_routine');
-        alert('⚠️ La rutina pausada expiró (14h).');
+        alert('️ La rutina pausada expiró (14h).');
         return false;
     }
     const hLeft = Math.floor(14 - hoursPassed);
@@ -1310,7 +1314,7 @@ function renderHistoryStats(history) {
     const streak = calculateStreak(history);
     const favoriteDay = getFavoriteDay(history);
 
-    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
+    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
 }
 
 function calculateStreak(history) {
