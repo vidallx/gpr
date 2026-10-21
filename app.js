@@ -1,5 +1,5 @@
 // ==========================================
-//  PLUGIN NATIVO DE VOZ (CAPACITOR)
+// 🆕 PLUGIN NATIVO DE VOZ (CAPACITOR)
 // ==========================================
 let TTSPlugin = null;
 let ttsReady = false;
@@ -132,7 +132,7 @@ function updateDayInfo(day, hasRoutine) {
         info.innerHTML = `✅ Ya tienes una rutina programada para <strong>${day}</strong> con ${currentRoutine.exercises.length} ejercicio(s).`;
         info.style.color = '#28a745';
     } else {
-        info.innerHTML = `️ No hay rutina programada para <strong>${day}</strong>. Crea una nueva.`;
+        info.innerHTML = `ℹ️ No hay rutina programada para <strong>${day}</strong>. Crea una nueva.`;
         info.style.color = '#666';
     }
 }
@@ -141,7 +141,7 @@ function updateDayInfo(day, hasRoutine) {
 // 1. AUTENTICACIÓN
 // ==========================================
 async function login() {
-    if (!supabaseClient) return alert(' Error: Supabase no está conectado.');
+    if (!supabaseClient) return alert('❌ Error: Supabase no está conectado.');
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -157,7 +157,7 @@ async function register() {
     const password = document.getElementById('register-password').value;
     const passwordConfirm = document.getElementById('register-password-confirm').value;
     if (!name) return showMessage('⚠️ Ingresa tu nombre.', 'register-message');
-    if (!email || !password) return showMessage('️ Completa todos los campos.', 'register-message');
+    if (!email || !password) return showMessage('⚠️ Completa todos los campos.', 'register-message');
     if (password.length < 6) return showMessage('⚠️ Contraseña mín 6 caracteres.', 'register-message');
     if (password !== passwordConfirm) return showMessage('⚠️ Contraseñas no coinciden.', 'register-message');
     showMessage('Creando cuenta...', 'register-message');
@@ -217,7 +217,7 @@ async function loadPlanFromCloud() {
         const { data, error } = await supabaseClient.from('user_plans').select('*').eq('user_id', currentUser.id).single();
         if (error) {
             if (error.code === 'PGRST116') return false;
-            console.error('❌ Error al cargar desde la nube:', error); return false;
+            console.error(' Error al cargar desde la nube:', error); return false;
         }
         if (data) {
             const localScheduled = localStorage.getItem('scheduled_routines');
@@ -247,7 +247,7 @@ async function syncNow() {
     if (!supabaseClient) { alert('❌ Supabase no está disponible.'); return; }
     try {
         const success = await syncPlanToCloud();
-        if (success) alert('✅ Sincronización completada.'); else alert('️ No se pudo sincronizar.');
+        if (success) alert('✅ Sincronización completada.'); else alert('⚠️ No se pudo sincronizar.');
     } catch (e) { alert('❌ Error al sincronizar: ' + e.message); }
 }
 
@@ -445,7 +445,7 @@ function renderScheduledRoutines() {
         const todayBadge = isToday ? ' <span style="background:#C23D55;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">HOY</span>' : '';
         if (routine) {
             const exercisesList = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
+            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
         } else {
             html += `<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid #ccc;opacity:0.7;"> <div style="display:flex;justify-content:space-between;align-items:center;"> <h3 style="margin:0;color:#999;">${day}${todayBadge}</h3> <button onclick="createRoutineForDay('${day}')" style="padding:5px 12px;font-size:12px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;">+ Crear</button> </div> <p style="margin:5px 0;font-size:12px;color:#999;">Sin rutina programada</p> </div>`;
         }
@@ -583,7 +583,7 @@ function show12WeekPlan() {
             const exactDate = new Date(startDate); exactDate.setDate(startDate.getDate() + daysToAdd);
             const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
             const exNames = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong>${dayName}</strong><span style="font-size:12px;color:#666;"> ${dateStr}</span></div><p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p></div>`;
+            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong>${dayName}</strong><span style="font-size:12px;color:#666;">  ${dateStr}</span></div><p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p></div>`;
         });
         html += `</div></div>`;
     });
@@ -662,7 +662,7 @@ function buildTimerQueue() {
                 if (tPb > 0) phases.push({ phase: 'Pausa Abajo', duration: tPb, action: 'pause-bottom' });
                 if (tCon > 0) { if (isExp) phases.push({ phase: '¡EXPLOSIVO!', duration: 1, action: 'con-explosive' }); else phases.push({ phase: 'Concéntrico', duration: tCon, action: 'con' }); }
                 if (tPt > 0) phases.push({ phase: 'Pausa Arriba', duration: tPt, action: 'pause-top' });
-                phases.forEach((p, idx) => { queue.push({ ...p, exerciseName: ex.name, setNumber: s, repNumber: r, totalReps: ex.reps, totalSets: ex.sets, sideLabel: isUnilateral ? "Izquierda" : "", blockSide: isUnilateral ? "left" : null, isFirstPhaseOfRep: (idx === 0), isUnilateral }); });
+                phases.forEach((p, idx) => { queue.push({ ...p, exerciseName: ex.name, setNumber: s, repNumber: r, totalReps: ex.reps, totalSets: ex.sets, sideLabel: isUnilateral ? "Izquierda" : "", blockSide: isUnilateral ? "left" : null, isFirstPhaseOfRep: (idx === 0), isFirstRepOfSide: (r === 1), isUnilateral }); });
             }
             if (isUnilateral) {
                 queue.push({ phase: 'Transición', duration: 8, action: 'rest-trans', exerciseName: ex.name, setNumber: s, totalSets: ex.sets, nextSide: "Derecha", isUnilateral: true });
@@ -672,7 +672,7 @@ function buildTimerQueue() {
                     if (tPb > 0) phases.push({ phase: 'Pausa Abajo', duration: tPb, action: 'pause-bottom' });
                     if (tCon > 0) { if (isExp) phases.push({ phase: '¡EXPLOSIVO!', duration: 1, action: 'con-explosive' }); else phases.push({ phase: 'Concéntrico', duration: tCon, action: 'con' }); }
                     if (tPt > 0) phases.push({ phase: 'Pausa Arriba', duration: tPt, action: 'pause-top' });
-                    phases.forEach((p, idx) => { queue.push({ ...p, exerciseName: ex.name, setNumber: s, repNumber: r, totalReps: ex.reps, totalSets: ex.sets, sideLabel: "Derecha", blockSide: "right", isFirstPhaseOfRep: (idx === 0), isUnilateral: true }); });
+                    phases.forEach((p, idx) => { queue.push({ ...p, exerciseName: ex.name, setNumber: s, repNumber: r, totalReps: ex.reps, totalSets: ex.sets, sideLabel: "Derecha", blockSide: "right", isFirstPhaseOfRep: (idx === 0), isFirstRepOfSide: (r === 1), isUnilateral: true }); });
                 }
             }
             if (s < ex.sets) queue.push({ phase: 'Descanso entre series', duration: ex.rest.set, action: 'rest', exerciseName: ex.name, setNumber: s, totalSets: ex.sets });
@@ -687,7 +687,7 @@ function buildTimerQueue() {
     loadNextPhase();
 }
 
-// 🆕 loadNextPhase: PARALELO (Beep + Voz al mismo tiempo)
+// 🆕 loadNextPhase: REGLAS UNILATERALES ACTUALIZADAS
 function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
@@ -707,18 +707,28 @@ function loadNextPhase() {
     const conFrase = isShort ? "concén" : "concéntrico";
 
     if (item.action === 'prep' && timeLeftInPhase === 40) speak("Comienza la preparación", 1.1);
+    
+    // ️ EXCÉNTRICO (Regla A y B aplicadas)
     else if (item.action === 'ecc' && item.duration >= 1) {
-        playSound('eccentric'); // PARALELO
-        if (item.isUnilateral && item.isFirstPhaseOfRep) speak(item.sideLabel + ", " + eccFrase, 1.3);
-        else speak(eccFrase, 1.3);
+        playSound('eccentric');
+        if (item.isUnilateral && item.isFirstRepOfSide && item.sideLabel === "Izquierda") {
+            // Regla A: Anuncio inicial del lado izquierdo
+            speak("Iniciar lado Izquierdo", 1.3);
+            speak(eccFrase, 1.3);
+        } else {
+            // Lado izquierdo (resto de reps) o Lado derecho: Solo tempo
+            speak(eccFrase, 1.3);
+        }
     }
     else if (item.action === 'pause-bottom' && item.duration >= 1) playSound('pause-bottom');
+    
+    // 🏋️ CONCÉNTRICO (Regla A y B aplicadas: solo tempo)
     else if (item.action === 'con' && item.duration >= 1) {
-        playSound('concentric'); // PARALELO
+        playSound('concentric');
         speak(conFrase, 1.3);
     }
     else if (item.action === 'con-explosive' && item.duration >= 1) {
-        playSound('con-explosive'); // PARALELO
+        playSound('con-explosive');
         speak("¡Empuja!", 1.5);
     }
     else if (item.action === 'pause-top' && item.duration >= 1) playSound('pause-top');
@@ -785,7 +795,12 @@ function tick() {
     }
 
     if (isTempo && currentItem.duration >= 3 && currentSecond < currentItem.duration && currentSecond > 0) playSound('metronome');
-    if (currentItem.action === 'rest-trans' && currentSecond === 7 && !spokenFlags['changeSide']) { spokenFlags['changeSide'] = true; speak("Cambiar a " + currentItem.nextSide, 1.3); }
+    
+    // 🔄 Regla B: Transición unilateral
+    if (currentItem.action === 'rest-trans' && currentSecond === 7 && !spokenFlags['changeSide']) {
+        spokenFlags['changeSide'] = true;
+        speak("Cambiar a " + currentItem.nextSide, 1.3);
+    }
 
     updateTimerUI(currentItem);
 
@@ -878,7 +893,7 @@ function renderHistoryStats(history) {
     const container = document.getElementById('history-stats');
     const totalRoutines = history.length; const totalTime = history.reduce((sum, r) => sum + (r.total_time || 0), 0);
     const streak = calculateStreak(history); const favoriteDay = getFavoriteDay(history);
-    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
+    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon"></div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
 }
 
 function calculateStreak(history) {
@@ -913,10 +928,10 @@ function renderHistoryList(history) {
     const container = document.getElementById('history-list');
     if (history.length === 0) { container.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No hay registros.</p>'; return; }
     container.innerHTML = history.map((item) => {
-        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '🦵' : '🏃';
+        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '' : '🏃';
         const exercisesList = item.exercises.map(e => e.name).join(', ');
         const unilateralCount = item.exercises.filter(e => e.equipment !== 'Sin equipo' && e.quantity === 1).length;
-        return `<div class="history-item"> <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button> <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"> <span style="font-size:28px;">${typeIcon}</span> <div style="flex:1;"> <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3> <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p> </div> </div> <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;"> <p style="margin:0;font-size:13px;"><strong>⏱️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p> <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p> </div> <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button> </div>`;
+        return `<div class="history-item"> <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button> <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"> <span style="font-size:28px;">${typeIcon}</span> <div style="flex:1;"> <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3> <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p> </div> </div> <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;"> <p style="margin:0;font-size:13px;"><strong>️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p> <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p> </div> <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button> </div>`;
     }).join('');
 }
 
