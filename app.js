@@ -1,5 +1,5 @@
 // ==========================================
-// 🆕 PLUGIN NATIVO DE VOZ (CAPACITOR)
+//  PLUGIN NATIVO DE VOZ (CAPACITOR)
 // ==========================================
 let TTSPlugin = null;
 let ttsReady = false;
@@ -28,7 +28,7 @@ try {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         console.log('✅ Supabase inicializado correctamente');
     } else {
-        console.error('❌ La librería de Supabase no está cargada.');
+        console.error(' La librería de Supabase no está cargada.');
     }
 } catch (e) {
     console.error('❌ Error al inicializar Supabase:', e);
@@ -49,11 +49,13 @@ let currentScheduledDay = 'Lunes';
 let allHistoryData = [];
 let wakeLock = null;
 
-// 🆕 Variables para control preciso del tiempo y cola de voces
 let phaseStartTime = 0;
 let spokenFlags = {};
 let voiceQueue = [];
 let isSpeaking = false;
+
+let skipWarmup = false;
+let skipCooldown = false; // 🆕 Variable para saltar enfriamiento
 
 async function requestWakeLock() {
     try {
@@ -71,6 +73,300 @@ function releaseWakeLock() {
 document.addEventListener('visibilitychange', async () => {
     if (wakeLock && document.visibilityState === 'visible') await requestWakeLock();
 });
+
+// ==========================================
+// 🔥 PLANTILLAS DE CALENTAMIENTO
+// ==========================================
+const warmupRoutines = {
+    'Full Body': [
+        { name: 'Rotaciones de tobillos (Izquierda)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de tobillos (Derecha)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de cadera (Izquierda)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de cadera (Derecha)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de hombros (Adelante)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de hombros (Atrás)', duration: 30, type: 'movilidad' },
+        { name: 'Gato-vaca', duration: 60, type: 'movilidad' },
+        { name: 'Sentadillas sin peso', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Flexiones', sets: 1, reps: 8, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Zancadas alternas', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Jumping jacks', duration: 45, type: 'activación' }
+    ],
+    'Tren Superior': [
+        { name: 'Rotaciones de muñecas', duration: 30, type: 'movilidad' },
+        { name: 'Círculos de brazos (Adelante)', duration: 30, type: 'movilidad' },
+        { name: 'Círculos de brazos (Atrás)', duration: 30, type: 'movilidad' },
+        { name: 'Dislocaciones de hombro', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Flexiones', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Remo invertido', sets: 1, reps: 8, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Aperturas de pecho', sets: 1, reps: 15, tempo: { ecc: 1, pb: 0, con: 1, pt: 0 }, type: 'activación' }
+    ],
+    'Tren Inferior': [
+        { name: 'Movilidad de tobillos (Izquierda)', duration: 30, type: 'movilidad' },
+        { name: 'Movilidad de tobillos (Derecha)', duration: 30, type: 'movilidad' },
+        { name: '90/90 de cadera (Izquierda)', duration: 60, type: 'movilidad' },
+        { name: '90/90 de cadera (Derecha)', duration: 60, type: 'movilidad' },
+        { name: 'Sentadilla profunda isométrica', duration: 45, type: 'movilidad' },
+        { name: 'Puente de glúteos', sets: 1, reps: 15, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Zancadas', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación', unilateral: true },
+        { name: 'Elevaciones de talones', sets: 1, reps: 20, tempo: { ecc: 1, pb: 0, con: 1, pt: 0 }, type: 'activación' }
+    ],
+    'Push': [
+        { name: 'Rotaciones de hombros (Adelante)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de hombros (Atrás)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de muñecas', duration: 30, type: 'movilidad' },
+        { name: 'Flexiones', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Flexiones diamante', sets: 1, reps: 8, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Press de hombro sin peso', sets: 1, reps: 12, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Aperturas de pecho', sets: 1, reps: 15, tempo: { ecc: 1, pb: 0, con: 1, pt: 0 }, type: 'activación' }
+    ],
+    'Pull': [
+        { name: 'Rotaciones de hombros (Adelante)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de hombros (Atrás)', duration: 30, type: 'movilidad' },
+        { name: 'Dislocaciones de hombro', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Remo invertido', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Curl de bíceps sin peso', sets: 1, reps: 15, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Extensión de tríceps', sets: 1, reps: 12, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Scapular pull-ups', sets: 1, reps: 10, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' }
+    ],
+    'Core': [
+        { name: 'Rotaciones de tronco (Izquierda)', duration: 30, type: 'movilidad' },
+        { name: 'Rotaciones de tronco (Derecha)', duration: 30, type: 'movilidad' },
+        { name: 'Gato-vaca', duration: 60, type: 'movilidad' },
+        { name: 'Plancha frontal', duration: 45, type: 'activación' },
+        { name: 'Plancha lateral (Izquierda)', duration: 30, type: 'activación' },
+        { name: 'Plancha lateral (Derecha)', duration: 30, type: 'activación' },
+        { name: 'Crunches', sets: 1, reps: 15, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' },
+        { name: 'Elevaciones de pierna', sets: 1, reps: 12, tempo: { ecc: 2, pb: 0, con: 2, pt: 0 }, type: 'activación' }
+    ]
+};
+
+// ==========================================
+//  PLANTILLAS DE ENFRIAMIENTO (COOL-DOWN)
+// ==========================================
+const cooldownRoutines = {
+    'Full Body': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de cuádriceps (Izquierda)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de cuádriceps (Derecha)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de isquiotibiales (Izquierda)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de isquiotibiales (Derecha)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de glúteos (Izquierda)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de glúteos (Derecha)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de pecho', duration: 30, type: 'estiramiento' },
+        { name: 'Gato-vaca lento', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Izquierda)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Derecha)', duration: 30, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ],
+    'Tren Superior': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de pecho', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de tríceps (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de tríceps (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de bíceps (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de bíceps (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de antebrazos (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de antebrazos (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ],
+    'Tren Inferior': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de cuádriceps (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de cuádriceps (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de isquiotibiales (Izquierdo)', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de isquiotibiales (Derecho)', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de glúteos (Izquierdo)', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de glúteos (Derecho)', duration: 45, type: 'estiramiento' },
+        { name: 'Mariposa (aductores)', duration: 60, type: 'estiramiento' },
+        { name: 'Estiramiento de gemelos (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de gemelos (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ],
+    'Push': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de pecho', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de tríceps (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de tríceps (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de antebrazos', duration: 30, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ],
+    'Pull': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de espalda (gato-vaca)', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de bíceps (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de bíceps (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de antebrazos (Izquierdo)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de antebrazos (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de hombros', duration: 30, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ],
+    'Core': [
+        { name: 'Respiración profunda', duration: 60, type: 'respiración', guide: 'Inhala 4 segundos, exhala 4 segundos' },
+        { name: 'Estiramiento de abdomen (cobra)', duration: 45, type: 'estiramiento' },
+        { name: 'Estiramiento de espalda (niño)', duration: 45, type: 'estiramiento' },
+        { name: 'Rotación de tronco (Izquierda)', duration: 30, type: 'estiramiento' },
+        { name: 'Rotación de tronco (Derecho)', duration: 30, type: 'estiramiento' },
+        { name: 'Estiramiento de cadera', duration: 45, type: 'estiramiento' },
+        { name: 'Relajación final', duration: 30, type: 'cierre', guide: 'Respira profundo. Orgulloso de tu esfuerzo' }
+    ]
+};
+
+// Frases motivacionales específicas para calentamiento
+const warmupMotivation = [
+    "Cada minuto de calentamiento previene lesiones",
+    "Prepara tu cuerpo, prepara tu mente",
+    "La disciplina empieza antes del primer ejercicio",
+    "Hoy construyes la base de tu progreso",
+    "Escucha a tu cuerpo, respeta el proceso",
+    "El calentamiento no es opcional, es inversión",
+    "Estás a un paso de tu mejor versión",
+    "La constancia es tu superpoder"
+];
+
+const warmupTips = [
+    "Mantén la respiración fluida, no la aguantes",
+    "Movimientos controlados, no bruscos",
+    "Si sientes dolor agudo, detente",
+    "Concéntrate en la zona que estás activando",
+    "Rango completo de movimiento, sin prisa",
+    "Mantén el core ligeramente activado",
+    "Hombros relajados, espalda neutra"
+];
+
+const warmupBenefits = [
+    "Esto aumenta la lubricación de tus articulaciones",
+    "Estás elevando la temperatura muscular",
+    "Mejora la conexión mente-músculo",
+    "Preparas tu sistema nervioso para el esfuerzo"
+];
+
+// ==========================================
+// 🌑 MODO OSCURO
+// ==========================================
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    localStorage.setItem('darkMode', isDark);
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.innerText = isDark ? '☀️' : '';
+    if (typeof updateChartsTheme === 'function') updateChartsTheme(isDark);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+        const btn = document.getElementById('theme-btn');
+        if (btn) btn.innerText = '☀️';
+    }
+});
+
+// ==========================================
+// 📊 GRÁFICOS DE PROGRESO (Chart.js)
+// ==========================================
+let volumeChartInstance = null;
+let frequencyChartInstance = null;
+
+function parseWeight(weightStr) {
+    if (!weightStr) return 0;
+    const match = String(weightStr).match(/[\d.]+/);
+    return match ? parseFloat(match[0]) : 0;
+}
+
+function renderProgressCharts() {
+    const history = JSON.parse(localStorage.getItem('gym_history') || '[]');
+    const container = document.getElementById('charts-container');
+    if (!container) return;
+    
+    if (history.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = 'block';
+
+    const volumeData = history.map(h => {
+        let totalVolume = 0;
+        h.exercises.forEach(ex => {
+            const weight = parseWeight(ex.weight);
+            totalVolume += (ex.sets * ex.reps * weight);
+        });
+        return { date: h.date, volume: totalVolume };
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const labels = volumeData.map(d => d.date.slice(5));
+    const volumes = volumeData.map(d => d.volume);
+
+    const dayCounts = { 'Lunes': 0, 'Martes': 0, 'Miércoles': 0, 'Jueves': 0, 'Viernes': 0, 'Sábado': 0, 'Domingo': 0 };
+    history.forEach(h => { if (dayCounts[h.day] !== undefined) dayCounts[h.day]++; });
+
+    const isDark = document.body.classList.contains('dark-mode');
+    const textColor = isDark ? '#f1f2f6' : '#1a1a1a';
+    const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const primaryColor = isDark ? '#4a6cf7' : '#0C047D';
+    const secondaryColor = isDark ? '#ff6b81' : '#C23D55';
+
+    const ctxVolume = document.getElementById('volumeChart');
+    if (ctxVolume) {
+        if (volumeChartInstance) volumeChartInstance.destroy();
+        volumeChartInstance = new Chart(ctxVolume.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Volumen (kg)',
+                    data: volumes,
+                    borderColor: secondaryColor,
+                    backgroundColor: secondaryColor + '33',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { labels: { color: textColor } } },
+                scales: {
+                    x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor }, grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+
+    const ctxFreq = document.getElementById('frequencyChart');
+    if (ctxFreq) {
+        if (frequencyChartInstance) frequencyChartInstance.destroy();
+        frequencyChartInstance = new Chart(ctxFreq.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(dayCounts),
+                datasets: [{
+                    label: 'Entrenamientos',
+                    data: Object.values(dayCounts),
+                    backgroundColor: primaryColor,
+                    borderRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: textColor }, grid: { display: false } },
+                    y: { ticks: { color: textColor, stepSize: 1 }, grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+}
+
+function updateChartsTheme(isDark) {
+    if (volumeChartInstance || frequencyChartInstance) {
+        renderProgressCharts();
+    }
+}
 
 // ==========================================
 // INICIALIZACIÓN
@@ -156,8 +452,8 @@ async function register() {
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
     const passwordConfirm = document.getElementById('register-password-confirm').value;
-    if (!name) return showMessage('⚠️ Ingresa tu nombre.', 'register-message');
-    if (!email || !password) return showMessage('⚠️ Completa todos los campos.', 'register-message');
+    if (!name) return showMessage('️ Ingresa tu nombre.', 'register-message');
+    if (!email || !password) return showMessage('️ Completa todos los campos.', 'register-message');
     if (password.length < 6) return showMessage('⚠️ Contraseña mín 6 caracteres.', 'register-message');
     if (password !== passwordConfirm) return showMessage('⚠️ Contraseñas no coinciden.', 'register-message');
     showMessage('Creando cuenta...', 'register-message');
@@ -217,7 +513,7 @@ async function loadPlanFromCloud() {
         const { data, error } = await supabaseClient.from('user_plans').select('*').eq('user_id', currentUser.id).single();
         if (error) {
             if (error.code === 'PGRST116') return false;
-            console.error(' Error al cargar desde la nube:', error); return false;
+            console.error('❌ Error al cargar desde la nube:', error); return false;
         }
         if (data) {
             const localScheduled = localStorage.getItem('scheduled_routines');
@@ -247,7 +543,7 @@ async function syncNow() {
     if (!supabaseClient) { alert('❌ Supabase no está disponible.'); return; }
     try {
         const success = await syncPlanToCloud();
-        if (success) alert('✅ Sincronización completada.'); else alert('⚠️ No se pudo sincronizar.');
+        if (success) alert('✅ Sincronización completada.'); else alert('️ No se pudo sincronizar.');
     } catch (e) { alert('❌ Error al sincronizar: ' + e.message); }
 }
 
@@ -282,7 +578,6 @@ function getRandomMotivationPhrase() {
     return motivationPhrases[Math.floor(Math.random() * motivationPhrases.length)];
 }
 
-// 🆕 FUNCIÓN speak CON COLA SECUENCIAL (Evita solapamiento de voces)
 async function speak(text, rate = 1.1) {
     voiceQueue.push({ text, rate });
     if (isSpeaking) return;
@@ -307,12 +602,11 @@ async function speak(text, rate = 1.1) {
                 });
             }
         } catch (e) { console.warn('⚠️ Error de voz:', e); }
-        await new Promise(r => setTimeout(r, 100)); // Pausa breve entre voces
+        await new Promise(r => setTimeout(r, 100));
     }
     isSpeaking = false;
 }
 
-// 🆕 Cancelar todas las voces pendientes
 function cancelAllVoices() {
     voiceQueue = [];
     isSpeaking = false;
@@ -428,6 +722,8 @@ function saveRoutineOnly() {
 
 function saveAndStartRoutine() {
     if (currentRoutine.exercises.length === 0) return alert('Añade al menos un ejercicio');
+    skipWarmup = document.getElementById('skip-warmup-checkbox')?.checked || false;
+    skipCooldown = document.getElementById('skip-cooldown-checkbox')?.checked || false; // 🆕 Leer checkbox enfriamiento
     saveRoutineToStorage(); buildTimerQueue(); showInterface('executor-section'); requestWakeLock();
     speak("Dispondrás de 40 segundos para prepararte", 1.1);
 }
@@ -445,7 +741,7 @@ function renderScheduledRoutines() {
         const todayBadge = isToday ? ' <span style="background:#C23D55;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">HOY</span>' : '';
         if (routine) {
             const exercisesList = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
+            html += `<div style="background:${isToday?'#e8f5e9':'#f8f9fa'};padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid ${isToday?'#28a745':'#0C047D'};"> <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:5px;"> <h3 style="margin:0;color:#0C047D;">${day}${todayBadge}</h3> <div style="display:flex;gap:5px;"> <button onclick="loadAndStartRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#28a745;color:white;border:none;border-radius:5px;cursor:pointer;">▶</button> <button onclick="editScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ffc107;color:#000;border:none;border-radius:5px;cursor:pointer;">✏️</button> <button onclick="deleteScheduledRoutine('${day}')" style="padding:5px 10px;font-size:12px;background:#ff4444;color:white;border:none;border-radius:5px;cursor:pointer;">🗑️</button> </div> </div> <p style="margin:5px 0;font-size:13px;"><strong>${routine.bodyPart||'Full Body'}</strong> | ⏱️ ${formatTime(routine.totalTime)}</p> <p style="margin:5px 0;font-size:12px;color:#888;"><small>${exercisesList}</small></p> </div>`;
         } else {
             html += `<div style="background:#f8f9fa;padding:15px;border-radius:10px;margin-bottom:10px;border-left:4px solid #ccc;opacity:0.7;"> <div style="display:flex;justify-content:space-between;align-items:center;"> <h3 style="margin:0;color:#999;">${day}${todayBadge}</h3> <button onclick="createRoutineForDay('${day}')" style="padding:5px 12px;font-size:12px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;">+ Crear</button> </div> <p style="margin:5px 0;font-size:12px;color:#999;">Sin rutina programada</p> </div>`;
         }
@@ -485,6 +781,18 @@ function deleteScheduledRoutine(day) {
     delete allRoutines[day]; localStorage.setItem('scheduled_routines', JSON.stringify(allRoutines)); syncPlanToCloud();
     if (day === currentScheduledDay) { currentRoutine = { exercises: [], totalTime: 0, restBetweenExercises: 0 }; clearFormInputs(); document.getElementById('total-time-display').innerText = '00:00'; document.getElementById('exercise-list').innerHTML = ''; updateDayInfo(day, false); }
     renderScheduledRoutines();
+}
+
+function toggleSkipWarmup() {
+    skipWarmup = !skipWarmup;
+    const checkbox = document.getElementById('skip-warmup-checkbox');
+    if (checkbox) checkbox.checked = skipWarmup;
+}
+
+function toggleSkipCooldown() {
+    skipCooldown = !skipCooldown;
+    const checkbox = document.getElementById('skip-cooldown-checkbox');
+    if (checkbox) checkbox.checked = skipCooldown;
 }
 
 // ==========================================
@@ -548,7 +856,7 @@ function handleCSVImport(event) {
                 });
                 Object.keys(currentRoutines).forEach(day => { if (!planData['1'][day]) preservedDays.push(day); });
             }
-            let summary = `📋 Resumen de importación:\n\n✅ Ejercicios válidos: ${validCount}\n📅 Semanas detectadas: ${Object.keys(planData).join(', ')}\n🆕 Días nuevos: ${importedDays.join(', ') || 'Ninguno'}\n`;
+            let summary = `📋 Resumen de importación:\n\n✅ Ejercicios válidos: ${validCount}\n Semanas detectadas: ${Object.keys(planData).join(', ')}\n🆕 Días nuevos: ${importedDays.join(', ') || 'Ninguno'}\n`;
             if (overwrittenDays.length > 0) summary += `⚠️ Se REEMPLAZARÁN: ${overwrittenDays.join(', ')}\n`;
             if (preservedDays.length > 0) summary += `💾 Se PRESERVARÁN: ${preservedDays.join(', ')}\n`;
             if (invalidRows.length > 0) summary += `\n⚠️ Filas ignoradas: ${invalidRows.length}`;
@@ -583,7 +891,7 @@ function show12WeekPlan() {
             const exactDate = new Date(startDate); exactDate.setDate(startDate.getDate() + daysToAdd);
             const dateStr = exactDate.toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
             const exNames = routine.exercises.map(e => e.name).join(', ');
-            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong>${dayName}</strong><span style="font-size:12px;color:#666;">  ${dateStr}</span></div><p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p></div>`;
+            html += `<div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;border-left:4px solid #C23D55;"><div style="display:flex;justify-content:space-between;align-items:center;"><strong>${dayName}</strong><span style="font-size:12px;color:#666;">📅 ${dateStr}</span></div><p style="font-size:12px;color:#555;margin:5px 0 0 0;">${routine.bodyPart} | ${routine.exercises.length} ej: <small>${exNames}</small></p></div>`;
         });
         html += `</div></div>`;
     });
@@ -648,8 +956,37 @@ function playTripleBeep(time) {
 
 function buildTimerQueue() {
     queue = [{ phase: 'Preparación', duration: 40, action: 'prep' }];
+    
+    // 🔥 INSERTAR CALENTAMIENTO
+    if (!skipWarmup) {
+        const bodyPart = document.getElementById('body-part').value;
+        const warmupExercises = warmupRoutines[bodyPart] || warmupRoutines['Full Body'];
+        
+        queue.push({ phase: '🔥 CALENTAMIENTO', duration: 5, action: 'warmup-intro', isWarmup: true });
+        
+        warmupExercises.forEach((ex, idx) => {
+            if (ex.duration) {
+                queue.push({ phase: `🔥 ${ex.name}`, duration: ex.duration, action: 'warmup-hold', exerciseName: ex.name, isWarmup: true });
+            } else if (ex.sets && ex.reps) {
+                const tEcc = ex.tempo.ecc || 0; const tPb = ex.tempo.pb || 0; const tCon = ex.tempo.con || 0; const tPt = ex.tempo.pt || 0;
+                for (let r = 1; r <= ex.reps; r++) {
+                    if (tEcc > 0) queue.push({ phase: ' Excéntrico', duration: tEcc, action: 'ecc', exerciseName: ex.name, isWarmup: true });
+                    if (tPb > 0) queue.push({ phase: ' Pausa Abajo', duration: tPb, action: 'pause-bottom', exerciseName: ex.name, isWarmup: true });
+                    if (tCon > 0) queue.push({ phase: '🔥 Concéntrico', duration: tCon, action: 'con', exerciseName: ex.name, isWarmup: true });
+                    if (tPt > 0) queue.push({ phase: ' Pausa Arriba', duration: tPt, action: 'pause-top', exerciseName: ex.name, isWarmup: true });
+                }
+            }
+            if (idx < warmupExercises.length - 1) {
+                queue.push({ phase: '🔥 Transición', duration: 5, action: 'warmup-trans', isWarmup: true });
+            }
+        });
+        queue.push({ phase: '✅ Calentamiento completado', duration: 5, action: 'warmup-end', isWarmup: true });
+    }
+    
+    // Rutina principal
     const totalExercises = currentRoutine.exercises.length;
     const restExSeconds = currentRoutine.restBetweenExercises || 0;
+    
     currentRoutine.exercises.forEach((ex, exIndex) => {
         const isUnilateral = (ex.equipment !== 'Sin equipo' && ex.quantity === 1);
         const nextExName = currentRoutine.exercises[exIndex + 1] ? currentRoutine.exercises[exIndex + 1].name : "el final de tu rutina";
@@ -682,12 +1019,35 @@ function buildTimerQueue() {
             queue.push({ phase: 'Descanso entre ejercicios', duration: restExSeconds, action: 'rest-exercise', exerciseName: ex.name, nextExName, nextExWeight, isLastTwoExercises });
         }
     });
+
+    // 🧘 INSERTAR ENFRIAMIENTO
+    if (!skipCooldown) {
+        const bodyPart = document.getElementById('body-part').value;
+        const cooldownExercises = cooldownRoutines[bodyPart] || cooldownRoutines['Full Body'];
+        
+        queue.push({ phase: '🧘 ENFRIAMIENTO', duration: 5, action: 'cooldown-intro', isCooldown: true });
+        
+        cooldownExercises.forEach((ex, idx) => {
+            queue.push({ 
+                phase: `🧘 ${ex.name}`, 
+                duration: ex.duration, 
+                action: 'cooldown-hold', 
+                exerciseName: ex.name,
+                cooldownGuide: ex.guide || null,
+                isCooldown: true 
+            });
+            if (idx < cooldownExercises.length - 1) {
+                queue.push({ phase: '🧘 Transición', duration: 5, action: 'cooldown-trans', isCooldown: true });
+            }
+        });
+        queue.push({ phase: '✅ Rutina completada', duration: 5, action: 'cooldown-end', isCooldown: true });
+    }
+
     queue.push({ phase: '¡Rutina Finalizada!', duration: 5, action: 'finish' });
     currentQueueIndex = 0;
     loadNextPhase();
 }
 
-// 🆕 loadNextPhase: REGLAS UNILATERALES ACTUALIZADAS
 function loadNextPhase() {
     if (currentQueueIndex >= queue.length) return;
     const item = queue[currentQueueIndex];
@@ -706,23 +1066,67 @@ function loadNextPhase() {
     const eccFrase = isShort ? "excén" : "excéntrico";
     const conFrase = isShort ? "concén" : "concéntrico";
 
+    // 🔥 FASES DE CALENTAMIENTO
+    if (item.isWarmup) {
+        if (item.action === 'warmup-intro') {
+            speak("Comenzamos con el calentamiento", 1.2);
+        }
+        else if (item.action === 'warmup-hold') {
+            speak(item.exerciseName, 1.2);
+            // 🆕 Motivación cada 2 ejercicios
+            const warmupIndex = queue.slice(0, currentQueueIndex).filter(q => q.action === 'warmup-hold').length;
+            if (warmupIndex % 2 === 0) {
+                setTimeout(() => {
+                    const type = Math.random();
+                    let phrase;
+                    if (type < 0.33) phrase = warmupMotivation[Math.floor(Math.random() * warmupMotivation.length)];
+                    else if (type < 0.66) phrase = warmupTips[Math.floor(Math.random() * warmupTips.length)];
+                    else phrase = warmupBenefits[Math.floor(Math.random() * warmupBenefits.length)];
+                    speak(phrase, 1.1);
+                }, 2000);
+            }
+        }
+        else if (item.action === 'warmup-trans') { /* Transición silenciosa */ }
+        else if (item.action === 'warmup-end') {
+            speak("Calentamiento completado. Iniciamos la rutina principal", 1.2);
+        }
+        else if (item.action === 'ecc') { playSound('eccentric'); speak(eccFrase, 1.3); }
+        else if (item.action === 'con') { playSound('concentric'); speak(conFrase, 1.3); }
+        else if (item.action === 'pause-bottom') { playSound('pause-bottom'); }
+        else if (item.action === 'pause-top') { playSound('pause-top'); }
+        return;
+    }
+
+    // 🧘 FASES DE ENFRIAMIENTO
+    if (item.isCooldown) {
+        if (item.action === 'cooldown-intro') {
+            speak("Excelente trabajo. Vamos a enfriar el cuerpo", 0.9);
+        }
+        else if (item.action === 'cooldown-hold') {
+            speak(item.exerciseName, 0.9);
+            if (item.cooldownGuide) {
+                setTimeout(() => speak(item.cooldownGuide, 0.9), 2000);
+            }
+        }
+        else if (item.action === 'cooldown-trans') { /* Silencioso */ }
+        else if (item.action === 'cooldown-end') {
+            speak("Rutina completada. Tu cuerpo te lo agradecerá", 0.9);
+        }
+        return;
+    }
+
+    // Rutina principal
     if (item.action === 'prep' && timeLeftInPhase === 40) speak("Comienza la preparación", 1.1);
-    
-    // ️ EXCÉNTRICO (Regla A y B aplicadas)
     else if (item.action === 'ecc' && item.duration >= 1) {
         playSound('eccentric');
         if (item.isUnilateral && item.isFirstRepOfSide && item.sideLabel === "Izquierda") {
-            // Regla A: Anuncio inicial del lado izquierdo
             speak("Iniciar lado Izquierdo", 1.3);
             speak(eccFrase, 1.3);
         } else {
-            // Lado izquierdo (resto de reps) o Lado derecho: Solo tempo
             speak(eccFrase, 1.3);
         }
     }
     else if (item.action === 'pause-bottom' && item.duration >= 1) playSound('pause-bottom');
-    
-    // 🏋️ CONCÉNTRICO (Regla A y B aplicadas: solo tempo)
     else if (item.action === 'con' && item.duration >= 1) {
         playSound('concentric');
         speak(conFrase, 1.3);
@@ -747,23 +1151,33 @@ function loadNextPhase() {
 
 function updateTimerUI(item) {
     let title = item.phase;
+    
+    if (item.isWarmup) title = `🔥 ${item.phase}`;
+    if (item.isCooldown) title = `🧘 ${item.phase}`;
+    
     if (item.action === 'rest-exercise') {
         title = `Siguiente: ${item.nextExName}`;
         if (item.nextExWeight) title += ` | Peso: ${item.nextExWeight}`;
-    } else if (item.exerciseName) {
+    } else if (item.exerciseName && !item.isWarmup && !item.isCooldown) {
         title = item.exerciseName;
         if (item.isUnilateral && item.sideLabel) title += ` - S${item.setNumber}/${item.totalSets} - ${item.sideLabel} - R${item.repNumber}/${item.totalReps}`;
         else if (item.setNumber) title += ` - S${item.setNumber}/${item.totalSets} | R${item.repNumber}/${item.totalReps}`;
     }
+    
     document.getElementById('current-phase-title').innerText = title;
     document.getElementById('timer-seconds').innerText = timeLeftInPhase;
+    
     const circle = document.querySelector('.progress-ring__circle');
     if (!circle) return;
-    const radius = circle.r.baseVal.value; const circumference = radius * 2 * Math.PI;
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
     circle.style.strokeDasharray = `${circumference} ${circumference}`;
     circle.style.strokeDashoffset = circumference - (timeLeftInPhase / item.duration) * circumference;
+    
     let color = '#ffffff';
-    if (item.action === 'ecc') color = '#ff4444';
+    if (item.isWarmup) color = '#ff9800';
+    else if (item.isCooldown) color = '#4a90e2'; // 🔵 Azul calmado
+    else if (item.action === 'ecc') color = '#ff4444';
     else if (item.action === 'pause-bottom') color = '#ffc107';
     else if (item.action === 'con' || item.action === 'con-explosive') color = '#28a745';
     else if (item.action === 'pause-top') color = '#007bff';
@@ -771,7 +1185,6 @@ function updateTimerUI(item) {
     circle.style.stroke = color;
 }
 
-// 🆕 tick: Basado en timestamps para evitar drift
 function tick() {
     if (isPaused) return;
     const currentItem = queue[currentQueueIndex];
@@ -780,7 +1193,7 @@ function tick() {
     const elapsed = (Date.now() - phaseStartTime) / 1000;
     const newTimeLeft = Math.max(0, Math.ceil(currentItem.duration - elapsed));
 
-    if (newTimeLeft === timeLeftInPhase) return; // Solo actuar si cambió el segundo
+    if (newTimeLeft === timeLeftInPhase) return;
     timeLeftInPhase = newTimeLeft;
     const currentSecond = timeLeftInPhase;
 
@@ -795,12 +1208,7 @@ function tick() {
     }
 
     if (isTempo && currentItem.duration >= 3 && currentSecond < currentItem.duration && currentSecond > 0) playSound('metronome');
-    
-    // 🔄 Regla B: Transición unilateral
-    if (currentItem.action === 'rest-trans' && currentSecond === 7 && !spokenFlags['changeSide']) {
-        spokenFlags['changeSide'] = true;
-        speak("Cambiar a " + currentItem.nextSide, 1.3);
-    }
+    if (currentItem.action === 'rest-trans' && currentSecond === 7 && !spokenFlags['changeSide']) { spokenFlags['changeSide'] = true; speak("Cambiar a " + currentItem.nextSide, 1.3); }
 
     updateTimerUI(currentItem);
 
@@ -810,7 +1218,6 @@ function tick() {
     }
 }
 
-// 🆕 toggleTimer con ajuste de timestamp al reanudar
 function toggleTimer() {
     if (audioCtx.state === 'suspended') audioCtx.resume();
     isPaused = !isPaused;
@@ -820,7 +1227,7 @@ function toggleTimer() {
         if (!phaseStartTime || phaseStartTime === 0) phaseStartTime = Date.now();
         else phaseStartTime = Date.now() - ((currentItem.duration - timeLeftInPhase) * 1000);
         
-        timerInterval = setInterval(tick, 100); // 100ms para máxima precisión
+        timerInterval = setInterval(tick, 100);
         requestWakeLock();
     } else {
         clearInterval(timerInterval);
@@ -886,14 +1293,14 @@ async function loadHistory() {
             if (data) history = [...data, ...history].filter((v, i, a) => a.findIndex(t => (t.date === v.date && t.body_part === v.body_part && JSON.stringify(t.exercises) === JSON.stringify(v.exercises))) === i);
         } catch (e) { console.error('Error cargando historial:', e); }
     }
-    history.sort((a, b) => new Date(b.date) - new Date(a.date)); allHistoryData = history; renderHistoryStats(history); applyHistoryFilters();
+    history.sort((a, b) => new Date(b.date) - new Date(a.date)); allHistoryData = history; renderHistoryStats(history); renderProgressCharts(); applyHistoryFilters();
 }
 
 function renderHistoryStats(history) {
     const container = document.getElementById('history-stats');
     const totalRoutines = history.length; const totalTime = history.reduce((sum, r) => sum + (r.total_time || 0), 0);
     const streak = calculateStreak(history); const favoriteDay = getFavoriteDay(history);
-    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon"></div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
+    container.innerHTML = `<div class="stats-grid"> <div class="stat-card"><div class="stat-icon">🏋️</div><div class="stat-value">${totalRoutines}</div><div class="stat-label">Rutinas</div></div> <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value">${formatTime(totalTime)}</div><div class="stat-label">Tiempo total</div></div> <div class="stat-card"><div class="stat-icon">🔥</div><div class="stat-value">${streak}</div><div class="stat-label">Racha (días)</div></div> <div class="stat-card"><div class="stat-icon">⭐</div><div class="stat-value">${favoriteDay || '-'}</div><div class="stat-label">Día favorito</div></div> </div>`;
 }
 
 function calculateStreak(history) {
@@ -928,10 +1335,10 @@ function renderHistoryList(history) {
     const container = document.getElementById('history-list');
     if (history.length === 0) { container.innerHTML = '<p style="text-align:center;color:#999;padding:20px;">No hay registros.</p>'; return; }
     container.innerHTML = history.map((item) => {
-        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '' : '🏃';
+        const typeIcon = item.body_part === 'Tren Superior' ? '💪' : item.body_part === 'Tren Inferior' ? '🦵' : '🏃';
         const exercisesList = item.exercises.map(e => e.name).join(', ');
         const unilateralCount = item.exercises.filter(e => e.equipment !== 'Sin equipo' && e.quantity === 1).length;
-        return `<div class="history-item"> <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button> <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"> <span style="font-size:28px;">${typeIcon}</span> <div style="flex:1;"> <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3> <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p> </div> </div> <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;"> <p style="margin:0;font-size:13px;"><strong>️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p> <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p> </div> <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button> </div>`;
+        return `<div class="history-item"> <button class="delete-btn" onclick="deleteHistory(${allHistoryData.indexOf(item)})">×</button> <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"> <span style="font-size:28px;">${typeIcon}</span> <div style="flex:1;"> <h3 style="margin:0;color:#0C047D;font-size:16px;">${item.date}</h3> <p style="margin:2px 0 0 0;font-size:12px;color:#666;">${item.day} • ${item.body_part}</p> </div> </div> <div style="background:#f8f9fa;padding:10px;border-radius:8px;margin-bottom:8px;"> <p style="margin:0;font-size:13px;"><strong>⏱️ ${formatTime(item.total_time)}</strong> • ${item.exercises.length} ejercicios${unilateralCount > 0 ? ` (${unilateralCount} unilateral${unilateralCount > 1 ? 'es' : ''})` : ''}</p> <p style="margin:5px 0 0 0;font-size:12px;color:#666;"><small>${exercisesList}</small></p> </div> <button onclick='reuseRoutine(${allHistoryData.indexOf(item)})' style="width:100%;padding:8px;background:#0C047D;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">🔄 Reutilizar</button> </div>`;
     }).join('');
 }
 
