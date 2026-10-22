@@ -9,13 +9,16 @@
     <meta name="theme-color" content="#C23D55">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <header>
-        <img src="gim.png" alt="Gym Logo" class="logo">
+        <img src="./gim.png" class="logo" alt="Gym Tracker Pro">
         <h1>Gym Tracker Pro</h1>
         <h6 style="color: rgba(255,255,255,0.7); margin-top: 5px; font-weight: normal; font-size: 14px; letter-spacing: 1px;">by Vidal</h6>
+        <!-- Botón de Modo Oscuro -->
+<button class="theme-toggle" onclick="toggleDarkMode()" id="theme-btn">🌙</button>
     </header>
 
     <main>
@@ -113,6 +116,8 @@
                             <option value="Máquinas de peso guiado">Máquinas de peso guiado</option>
                             <option value="Bandas de resistencia">Bandas de resistencia</option>
                             <option value="Bancos de entrenamiento">Bancos de entrenamiento</option>
+                            <option value="Rueda para abdominales">Rueda para abdominales</option>
+                            <option value="Trx">Trx</option>
                         </select>
                         <select id="ex-quantity" style="flex: 1;" disabled>
                             <option value="2">2 (Simultáneo)</option>
@@ -152,6 +157,25 @@
                     <button class="secondary" onclick="saveRoutineOnly()" style="flex: 1; background: #28a745; color: white;">📥 Solo Guardar</button>
                 </div>
             </div>
+            <div class="card">
+    <h3>Ejercicios de la Rutina</h3>
+    <ul id="exercise-list"></ul>
+    <div class="row">
+        <input type="number" id="rest-ex-global" placeholder="Descanso entre ejercicios (min)" min="0" value="2">
+    </div>
+    
+    <!-- 🔥 Checkbox para saltar calentamiento -->
+    <div style="margin: 15px 0; padding: 10px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffc107;">
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="skip-warmup-checkbox" onchange="toggleSkipWarmup()" style="width: auto; margin: 0;">
+            <span style="font-size: 14px;">⏭️ Saltar calentamiento (no recomendado)</span>
+        </label>
+    </div>
+    
+    <p>Tiempo total estimado: <strong id="total-time-display">00:00</strong></p>
+    <button onclick="saveRoutineOnly()">💾 Guardar Rutina</button>
+    <button onclick="saveAndStartRoutine()">▶️ Guardar e Iniciar</button>
+</div>
         </section>
 
         <!-- MIS RUTINAS (CON IMPORTACIÓN CSV) -->
@@ -217,6 +241,19 @@
 
         <!-- HISTORIAL -->
         <section id="history-section" class="interface">
+            <div id="charts-container" style="margin-bottom: 30px; display: none;">
+    <h2 style="color: white; text-align: center; margin-bottom: 20px;">📈 Tu Progreso</h2>
+    
+    <div class="card" style="margin-bottom: 20px;">
+        <h3 style="color: var(--secondary); margin-bottom: 10px;">Volumen Total (kg) por Día</h3>
+        <canvas id="volumeChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h3 style="color: var(--secondary); margin-bottom: 10px;">Frecuencia de Entrenamiento</h3>
+        <canvas id="frequencyChart"></canvas>
+    </div>
+</div>
             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                     <h2 style="margin: 0;">📜 Historial</h2>
